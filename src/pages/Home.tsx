@@ -11,7 +11,7 @@ import { Spinner } from '../components/common/Spinner';
 import { Input } from '../components/common/Input';
 import { MenuItemImage } from '../components/common/MenuItemImage';
 import { MealWheel } from '../components/common/MealWheel';
-import { UtensilsCrossed, ShoppingBag, Bike, Shield, Plus, Minus, Search, ShoppingCart } from 'lucide-react';
+import { UtensilsCrossed, ShoppingBag, Bike, Shield, Plus, Minus, Search, ShoppingCart, MapPin, Clock, Star, ChevronRight, ArrowRight } from 'lucide-react';
 import { formatCurrency } from '../utils/formatters';
 import { toast } from 'sonner';
 import type { Restaurant } from '../types/restaurant.types';
@@ -29,6 +29,7 @@ export const Home = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [quantities, setQuantities] = useState<Record<number, number>>({});
+  const [selectedRestaurantId, setSelectedRestaurantId] = useState<number | null>(null);
 
   useEffect(() => {
     fetchAllDishes();
@@ -116,27 +117,130 @@ export const Home = () => {
     );
   });
 
+  const selectedRestaurant = restaurants.find((r) => r.id === selectedRestaurantId);
+  const selectedRestaurantMenuItems = selectedRestaurantId
+    ? allMenuItems.filter((item) => item.restaurant_id === selectedRestaurantId && item.is_available)
+    : [];
+
   return (
     <div>
       {/* Hero Section with Meal Wheel */}
-      <div className="text-center py-8 mb-12">
-        <h1 className="text-5xl font-bold text-gray-900 mb-2">BiteDash</h1>
-        <p className="text-xl text-gray-600 mb-8">
-          Order food from your favorite restaurants in Kenya
-        </p>
-        
-        {isLoading ? (
-          <div className="flex items-center justify-center min-h-[500px]">
-            <Spinner size="lg" />
-          </div>
-        ) : (
-          <div className="mb-8">
-            <MealWheel
-              restaurants={restaurants}
-              menuItems={allMenuItems}
-            />
-          </div>
-        )}
+      <div className="relative overflow-hidden bg-gradient-to-br from-gray-50 via-white to-gray-50 py-12 lg:py-20 mb-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {isLoading ? (
+            <div className="flex items-center justify-center min-h-[500px]">
+              <Spinner size="lg" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16 items-center">
+              {/* Left Side - Selected Restaurant Info (Desktop) */}
+              <div className="order-2 lg:order-1">
+                {selectedRestaurant ? (
+                  <div className="p-10 lg:p-14 animate-fade-in">
+                    {/* Restaurant Header */}
+                    <div className="mb-10">
+                      <div className="mb-6">
+                        <h2 className="text-5xl lg:text-6xl xl:text-7xl font-extrabold text-gray-900 leading-tight tracking-tight">
+                          {selectedRestaurant.name.split(' ').map((word, index) => {
+                            if (index === 0) {
+                              return (
+                                <span key={index} className="relative inline-block">
+                                  <span 
+                                    className={`relative z-10 italic ${
+                                      selectedRestaurant.is_open
+                                        ? 'text-primary-600'
+                                        : 'text-red-500'
+                                    }`}
+                                    style={{
+                                      fontFamily: "'Dancing Script', 'Brush Script MT', 'Lucida Handwriting', cursive",
+                                      fontWeight: 600,
+                                    }}
+                                  >
+                                    {word}
+                                  </span>
+                                  <span
+                                    className={`absolute bottom-0 left-0 right-0 h-1 ${
+                                      selectedRestaurant.is_open
+                                        ? 'bg-primary-500'
+                                        : 'bg-red-400'
+                                    }`}
+                                    style={{
+                                      opacity: 0.25,
+                                    }}
+                                  />
+                                </span>
+                              );
+                            }
+                            return <span key={index}> {word}</span>;
+                          })}
+                        </h2>
+                      </div>
+                      {selectedRestaurant.description && (
+                        <p className="text-gray-600 text-xl lg:text-2xl mb-8 leading-relaxed max-w-2xl">
+                          {selectedRestaurant.description}
+                        </p>
+                      )}
+                      <div className="flex flex-wrap items-center gap-4 text-base text-gray-500 mb-10">
+                        {selectedRestaurant.location && (
+                          <div className="flex items-center gap-2">
+                            <MapPin className="h-5 w-5 text-primary-600" />
+                            <span className="font-semibold text-gray-700">{selectedRestaurant.location}</span>
+                          </div>
+                        )}
+                        {selectedRestaurantMenuItems.length > 0 && (
+                          <div className="flex items-center gap-2">
+                            <UtensilsCrossed className="h-5 w-5 text-primary-600" />
+                            <span className="font-semibold text-gray-700">{selectedRestaurantMenuItems.length} dishes</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* About Restaurant Button */}
+                    <Link
+                      to={`/stores/${selectedRestaurant.id}/menu`}
+                      className="group inline-flex items-center gap-2 text-xl text-gray-900 hover:text-primary-600 font-bold transition-colors"
+                    >
+                      <span>About Restaurant</span>
+                      <ArrowRight className="h-6 w-6 text-gray-400 group-hover:text-primary-600 group-hover:translate-x-1 transition-all" />
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="p-12 lg:p-16 text-center">
+                    <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+                      <UtensilsCrossed className="h-10 w-10 text-gray-400" />
+                    </div>
+                    <h3 className="text-3xl font-bold text-gray-900 mb-3">
+                      Select a Restaurant
+                    </h3>
+                    <p className="text-gray-600 text-xl">
+                      Spin the wheel to explore our restaurants
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Right Side - Meal Wheel */}
+              <div className="order-1 lg:order-2">
+                <div className="relative">
+                  {/* Drag Hint */}
+                  <div className="mb-6 text-center lg:hidden">
+                    <div className="inline-flex items-center gap-2 text-gray-400 text-sm">
+                      <div className="h-px w-8 bg-gray-200"></div>
+                      <span>DRAG TO SPIN</span>
+                      <div className="h-px w-8 bg-gray-200"></div>
+                    </div>
+                  </div>
+                  <MealWheel
+                    restaurants={restaurants}
+                    menuItems={allMenuItems}
+                    onRestaurantChange={setSelectedRestaurantId}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Search Bar */}
@@ -188,7 +292,7 @@ export const Home = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredMenuItems.map((item) => (
-              <Card key={item.id} className="hover:shadow-lg transition-shadow">
+              <Card key={item.id} id={`dish-${item.id}`} className="hover:shadow-lg transition-shadow">
                 <div className="mb-4">
                   <MenuItemImage src={item.image_url} alt={item.name} />
                 </div>

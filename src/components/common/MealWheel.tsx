@@ -81,7 +81,7 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange }: MealWh
 
   // Auto-slide dishes based on wheel rotation
   useEffect(() => {
-    if (selectedRestaurantItems.length === 0 || isSliderDragging) {
+    if (selectedRestaurantItems.length === 0 || isSliderDragging || isWheelDragging) {
       return;
     }
 
@@ -103,7 +103,7 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange }: MealWh
 
     // Calculate dish index based on cumulative rotation
     // Each 360 degrees of rotation cycles through all dishes
-    if (selectedRestaurantItems.length > 0 && Math.abs(adjustedDelta) > 0.5) {
+    if (selectedRestaurantItems.length > 0 && Math.abs(adjustedDelta) > 1) {
       const normalizedRotation = ((cumulativeRotationRef.current % 360) + 360) % 360;
       const rotationPerDish = 360 / selectedRestaurantItems.length;
       const dishIndex = Math.floor(normalizedRotation / rotationPerDish) % selectedRestaurantItems.length;
@@ -112,7 +112,7 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange }: MealWh
         setCurrentDishIndex(dishIndex);
       }
     }
-  }, [wheelRotation, selectedRestaurantItems.length, currentDishIndex, isSliderDragging]);
+  }, [wheelRotation, selectedRestaurantItems.length, currentDishIndex, isSliderDragging, isWheelDragging]);
 
   // Reset cumulative rotation when restaurant changes
   useEffect(() => {
@@ -651,16 +651,7 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange }: MealWh
   }
 
   return (
-    <div className="relative w-full max-w-4xl mx-auto px-4">
-      {/* Minimal Header */}
-      <div className="mb-8 text-center">
-        <div className="inline-flex items-center gap-2 text-gray-400 text-sm mb-2">
-          <div className="h-px w-8 bg-gray-200"></div>
-          <span>DRAG TO SPIN</span>
-          <div className="h-px w-8 bg-gray-200"></div>
-        </div>
-      </div>
-
+    <div className="relative w-full">
       {/* Wheel Container */}
       <div className="relative">
         {/* Selection Indicator - Minimal */}
@@ -785,7 +776,8 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange }: MealWh
                         className="flex h-full"
                         style={{
                           transform: `translateX(calc(-${currentDishIndex * 100}% + ${sliderDragOffset}px))`,
-                          transition: isSliderDragging ? 'none' : 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                          transition: isSliderDragging ? 'none' : 'transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+                          willChange: isSliderDragging ? 'transform' : 'auto',
                         }}
                       >
                         {selectedRestaurantItems.map((item) => (
