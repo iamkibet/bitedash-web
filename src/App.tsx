@@ -29,6 +29,7 @@ import { RestaurantDashboard } from './pages/Restaurant/Dashboard';
 import { MenuManagement } from './pages/Restaurant/MenuManagement';
 import { RestaurantOrders } from './pages/Restaurant/Orders';
 import { CreateStore } from './pages/Restaurant/CreateStore';
+import { StoreSettings } from './pages/Restaurant/StoreSettings';
 
 // Rider Pages
 import { RiderOrders } from './pages/Rider/Orders';
@@ -77,7 +78,7 @@ function App() {
             <Route path="/store/menu" element={<MenuManagement />} />
             <Route path="/store/orders" element={<RestaurantOrders />} />
             <Route path="/store/orders/:id" element={<OrderDetails />} />
-            <Route path="/store/settings" element={<div className="p-6">Store Settings (coming soon)</div>} />
+            <Route path="/store/settings" element={<StoreSettings />} />
           </Route>
 
           {/* Rider Routes */}

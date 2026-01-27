@@ -29,6 +29,7 @@ export interface CreateRestaurantData {
 
 export interface UpdateRestaurantData extends Partial<CreateRestaurantData> {
   is_open?: boolean;
+  image_url?: string;
 }
 
 export interface RestaurantListResponse {

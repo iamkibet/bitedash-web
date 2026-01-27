@@ -39,7 +39,28 @@ export const restaurantsApi = {
     }
   },
 
-  update: async (id: number, data: UpdateRestaurantData): Promise<Restaurant> => {
+  update: async (id: number, data: UpdateRestaurantData, image?: File): Promise<Restaurant> => {
+    if (image) {
+      const formData = new FormData();
+      Object.entries(data).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          if (typeof value === 'boolean') {
+            formData.append(key, value ? '1' : '0');
+          } else if (typeof value === 'number') {
+            formData.append(key, String(value));
+          } else {
+            formData.append(key, String(value));
+          }
+        }
+      });
+      formData.append('image', image);
+      const response = await apiClient.put<{ data: Restaurant }>(`/stores/${id}`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data.data;
+    }
     const response = await apiClient.put<{ data: Restaurant }>(`/stores/${id}`, data);
     return response.data.data;
   },

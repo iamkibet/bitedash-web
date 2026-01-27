@@ -173,14 +173,26 @@ export const RestaurantDashboard = () => {
     <div className="space-y-6">
       {/* Header Section */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">{restaurant.name}</h1>
-          <p className="text-gray-600 mt-1 flex items-center gap-2">
-            <span>{restaurant.location}</span>
-            <Badge variant={restaurant.is_open ? 'success' : 'error'} className="text-xs">
-              {restaurant.is_open ? 'Open' : 'Closed'}
-            </Badge>
-          </p>
+        <div className="flex items-center gap-4">
+          {/* Store Logo */}
+          {restaurant.image_url && (
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-lg overflow-hidden border-2 border-gray-200 bg-white shadow-sm flex-shrink-0">
+              <img
+                src={restaurant.image_url}
+                alt={restaurant.name}
+                className="w-full h-full object-cover"
+              />
+            </div>
+          )}
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">{restaurant.name}</h1>
+            <p className="text-gray-600 mt-1 flex items-center gap-2">
+              <span>{restaurant.location}</span>
+              <Badge variant={restaurant.is_open ? 'success' : 'error'} className="text-xs">
+                {restaurant.is_open ? 'Open' : 'Closed'}
+              </Badge>
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <Button

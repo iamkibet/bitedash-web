@@ -79,3 +79,31 @@
     @apply bg-blue-100 text-blue-800;
   }
 }
+
+/* Wheel animations and utilities */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+/* Smooth wheel rotation */
+.wheel-transition {
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Mobile optimizations */
+@media (max-width: 640px) {
+  .touch-action-manipulation {
+    touch-action: manipulation;
+  }
+}
+
+/* Prevent text selection during drag */
+.no-select {
+  user-select: none;
+  -webkit-user-select: none;
+}

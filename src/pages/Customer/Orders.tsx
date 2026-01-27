@@ -16,7 +16,7 @@ export const Orders = () => {
 
   useEffect(() => {
     fetchOrders();
-  }, []);
+  }, [fetchOrders]);
 
   const handleCancel = async (orderId: number) => {
     const order = orders.find((o) => o.id === orderId);
@@ -76,7 +76,7 @@ export const Orders = () => {
                       <h3 className="text-lg font-semibold text-gray-900">
                         Order #{order.id}
                       </h3>
-                      <Badge variant={statusConfig.color as any}>
+                      <Badge variant={statusConfig.color as 'success' | 'error' | 'warning' | 'info' | 'default'}>
                         {statusConfig.icon} {statusConfig.label}
                       </Badge>
                       {unpaid && (

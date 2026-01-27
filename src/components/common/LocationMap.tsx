@@ -207,7 +207,7 @@ export const LocationMap = ({ latitude, longitude, onLocationSelect, className =
             <span className="text-sm font-medium text-green-800">Location Selected</span>
           </div>
           <p className="text-xs text-green-700 font-mono">
-            Latitude: {position[0].toFixed(6)}, Longitude: {position[1].toFixed(6)}
+            Latitude: {Number(position[0]).toFixed(6)}, Longitude: {Number(position[1]).toFixed(6)}
           </p>
         </div>
       )}
