@@ -20,16 +20,36 @@ interface MealWheelProps {
   restaurants: Restaurant[];
   menuItems: MenuItemWithRestaurant[];
   onRestaurantChange?: (restaurantId: number | null) => void;
+  selectedRestaurantId?: number | null; // Allow parent to control selection
+  onInnerMenuHoverChange?: (isHovering: boolean) => void; // Notify parent when hovering inner menu
 }
 
-export const MealWheel = ({ restaurants, menuItems, onRestaurantChange }: MealWheelProps) => {
+export const MealWheel = ({ restaurants, menuItems, onRestaurantChange, selectedRestaurantId: externalSelectedRestaurantId, onInnerMenuHoverChange }: MealWheelProps) => {
   const { addItem, restaurantId: cartRestaurantId } = useCartStore();
   const { isAuthenticated } = useAuthStore();
-  const [selectedRestaurantId, setSelectedRestaurantId] = useState<number | null>(() => 
+  const [internalSelectedRestaurantId, setInternalSelectedRestaurantId] = useState<number | null>(() => 
     restaurants.length > 0 ? restaurants[0].id : null
   );
+  
+  // Use external selectedRestaurantId if provided, otherwise use internal state
+  const selectedRestaurantId = externalSelectedRestaurantId !== undefined ? externalSelectedRestaurantId : internalSelectedRestaurantId;
+  
+  const setSelectedRestaurantId = useCallback((id: number | null) => {
+    if (externalSelectedRestaurantId !== undefined) {
+      // External control - notify parent
+      if (onRestaurantChange) {
+        onRestaurantChange(id);
+      }
+    } else {
+      // Internal control
+      setInternalSelectedRestaurantId(id);
+      if (onRestaurantChange) {
+        onRestaurantChange(id);
+      }
+    }
+  }, [externalSelectedRestaurantId, onRestaurantChange]);
   const [currentDishIndex, setCurrentDishIndex] = useState(0);
-  const [wheelRotation, setWheelRotation] = useState(0);
+  const [wheelRotation, setWheelRotation] = useState(0); // Unbounded rotation for seamless scrolling
   const [isWheelDragging, setIsWheelDragging] = useState(false);
   const [dragStartAngle, setDragStartAngle] = useState(0);
   const [dragStartRotation, setDragStartRotation] = useState(0);
@@ -51,6 +71,7 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange }: MealWh
   const cumulativeRotationRef = useRef<number>(0);
   const lastWheelRotationRef = useRef<number>(0);
   const autoSlideIntervalRef = useRef<number | null>(null);
+  const [isHoveringInnerMenu, setIsHoveringInnerMenu] = useState(false);
 
   // Get menu items for selected restaurant
   const selectedRestaurantItems = selectedRestaurantId
@@ -70,7 +91,7 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange }: MealWh
         }
       }, 0);
     }
-  }, [restaurants, selectedRestaurantId, onRestaurantChange]);
+  }, [restaurants, selectedRestaurantId, onRestaurantChange, setSelectedRestaurantId]);
 
   // Notify parent when selected restaurant changes
   useEffect(() => {
@@ -112,7 +133,7 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange }: MealWh
         setCurrentDishIndex(dishIndex);
       }
     }
-  }, [wheelRotation, selectedRestaurantItems.length, currentDishIndex, isSliderDragging, isWheelDragging]);
+  }, [wheelRotation, selectedRestaurantItems.length, currentDishIndex, isSliderDragging, isWheelDragging, setSelectedRestaurantId]);
 
   // Reset cumulative rotation when restaurant changes
   useEffect(() => {
@@ -187,6 +208,11 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange }: MealWh
     });
   }, []);
 
+  // Get normalized rotation (0-360) for calculations while keeping actual rotation unbounded
+  const getNormalizedRotation = useCallback((rotation: number) => {
+    return ((rotation % 360) + 360) % 360;
+  }, []);
+
   // Enhanced snap function with smoother physics
   const snapToNearestRestaurant = useCallback((currentRotation: number) => {
     if (restaurants.length === 0) return currentRotation;
@@ -195,9 +221,12 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange }: MealWh
     let closestIndex = 0;
     let minAngleDiff = Infinity;
     
+    // Normalize rotation for calculation
+    const normalizedRotation = getNormalizedRotation(currentRotation);
+    
     for (let i = 0; i < restaurants.length; i++) {
       const restaurantBaseAngle = i * angleStep - 90;
-      const restaurantCurrentAngle = (restaurantBaseAngle + currentRotation) % 360;
+      const restaurantCurrentAngle = (restaurantBaseAngle + normalizedRotation) % 360;
       const normalizedAngle = ((restaurantCurrentAngle % 360) + 360) % 360;
       const angleDiff = Math.min(
         Math.abs(normalizedAngle - 270),
@@ -211,10 +240,28 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange }: MealWh
     }
     
     const closestRestaurantBaseAngle = closestIndex * angleStep - 90;
-    const targetRotation = -90 - closestRestaurantBaseAngle;
+    const targetNormalized = -90 - closestRestaurantBaseAngle;
+    
+    // Calculate the closest equivalent rotation that maintains continuity
+    // Find how many full rotations we've done
+    const fullRotations = Math.floor(currentRotation / 360);
+    const remainder = currentRotation % 360;
+    
+    // Find the closest equivalent target rotation
+    let targetRotation = targetNormalized + (fullRotations * 360);
+    
+    // Adjust if we need to go to next/prev rotation for closest match
+    const diff = targetNormalized - getNormalizedRotation(remainder);
+    if (Math.abs(diff) > 180) {
+      if (diff > 0) {
+        targetRotation -= 360;
+      } else {
+        targetRotation += 360;
+      }
+    }
     
     return targetRotation;
-  }, [restaurants]);
+  }, [restaurants, getNormalizedRotation]);
 
   // Smoother momentum function
   const applyMomentum = useCallback(() => {
@@ -229,7 +276,9 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange }: MealWh
         momentumTimeoutRef.current = null;
       }
       
+      // Snap to nearest restaurant while maintaining rotation continuity
       const snappedRotation = snapToNearestRestaurant(wheelRotation);
+      const normalizedSnapped = getNormalizedRotation(snappedRotation);
       setWheelRotation(snappedRotation);
       
       if (restaurants.length > 0) {
@@ -240,7 +289,7 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange }: MealWh
         for (let index = 0; index < restaurants.length; index++) {
           const restaurant = restaurants[index];
           const restaurantBaseAngle = index * angleStep - 90;
-          const restaurantCurrentAngle = (restaurantBaseAngle + snappedRotation) % 360;
+          const restaurantCurrentAngle = (restaurantBaseAngle + normalizedSnapped) % 360;
           const normalizedAngle = ((restaurantCurrentAngle % 360) + 360) % 360;
           const angleDiff = Math.min(
             Math.abs(normalizedAngle - 270),
@@ -268,13 +317,14 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange }: MealWh
     const progress = elapsed / 1500;
     const easeOut = 1 - Math.pow(1 - progress, 3);
     
+    // Allow rotation to grow unbounded for seamless scrolling
     setWheelRotation((prev) => prev + velocity);
     setVelocity((prev) => prev * (1 - easeOut * 0.12));
     
     if (applyMomentumRef.current) {
       animationFrameRef.current = requestAnimationFrame(applyMomentumRef.current);
     }
-  }, [velocity, wheelRotation, snapToNearestRestaurant, restaurants]);
+  }, [velocity, wheelRotation, snapToNearestRestaurant, restaurants, setSelectedRestaurantId, getNormalizedRotation]);
 
   useEffect(() => {
     applyMomentumRef.current = applyMomentum;
@@ -282,7 +332,12 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange }: MealWh
 
   // Wheel handlers
   const handleWheelMouseDown = (e: React.MouseEvent) => {
-    if (!wheelRef.current) return;
+    if (!wheelRef.current || isHoveringInnerMenu) return;
+    // Check if clicking on a restaurant avatar or inner menu
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-restaurant-avatar]') || target.closest('[data-inner-menu]')) {
+      return; // Let those components handle the interaction
+    }
     e.preventDefault();
     e.stopPropagation();
     setIsWheelDragging(true);
@@ -302,29 +357,36 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange }: MealWh
   };
 
   const handleWheelMouseMove = useCallback((e: MouseEvent) => {
-    if (!isWheelDragging || !wheelRef.current) return;
+    if (!isWheelDragging || !wheelRef.current || isHoveringInnerMenu) return;
+    e.preventDefault();
     const now = Date.now();
     const rect = wheelRef.current.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
     const angle = Math.atan2(e.clientY - centerY, e.clientX - centerX) * (180 / Math.PI);
-    const deltaAngle = angle - dragStartAngle;
+    
+    // Handle angle wrapping for delta calculation
+    let deltaAngle = angle - dragStartAngle;
+    if (deltaAngle > 180) deltaAngle -= 360;
+    if (deltaAngle < -180) deltaAngle += 360;
     
     const timeDelta = now - lastTime;
     if (timeDelta > 0 && timeDelta < 100) {
-      const angleDelta = angle - lastAngle;
-      let normalizedDelta = angleDelta;
-      if (normalizedDelta > 180) normalizedDelta -= 360;
-      if (normalizedDelta < -180) normalizedDelta += 360;
-      const rawVelocity = (normalizedDelta / timeDelta) * 2.2;
+      let angleDelta = angle - lastAngle;
+      if (angleDelta > 180) angleDelta -= 360;
+      if (angleDelta < -180) angleDelta += 360;
+      const rawVelocity = (angleDelta / timeDelta) * 2.2;
       const newVelocity = Math.max(-6, Math.min(6, rawVelocity));
       setVelocity((prev) => prev * 0.4 + newVelocity * 0.6);
     }
     
-    setWheelRotation(dragStartRotation + deltaAngle);
+    // Allow rotation to grow unbounded for seamless scrolling
+    const newRotation = dragStartRotation + deltaAngle;
+    setWheelRotation(newRotation);
+    
     setLastAngle(angle);
     setLastTime(now);
-  }, [isWheelDragging, dragStartAngle, dragStartRotation, lastAngle, lastTime]);
+  }, [isWheelDragging, dragStartAngle, dragStartRotation, lastAngle, lastTime, isHoveringInnerMenu]);
 
   const handleWheelMouseUp = useCallback(() => {
     setIsWheelDragging(false);
@@ -378,7 +440,7 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange }: MealWh
         }
       }
     }
-  }, [velocity, wheelRotation, snapToNearestRestaurant, restaurants]);
+  }, [velocity, wheelRotation, snapToNearestRestaurant, restaurants, setSelectedRestaurantId, getNormalizedRotation]);
 
   useEffect(() => {
     if (isWheelDragging) {
@@ -394,6 +456,11 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange }: MealWh
   // Touch handlers for wheel
   const handleWheelTouchStart = (e: React.TouchEvent) => {
     if (!wheelRef.current) return;
+    // Check if touching inner menu
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-inner-menu]')) {
+      return; // Let inner menu handle touch
+    }
     e.preventDefault();
     setIsWheelDragging(true);
     setVelocity(0);
@@ -412,7 +479,7 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange }: MealWh
   };
 
   const handleWheelTouchMove = (e: React.TouchEvent) => {
-    if (!isWheelDragging || !wheelRef.current) return;
+    if (!isWheelDragging || !wheelRef.current || isHoveringInnerMenu) return;
     e.preventDefault();
     const now = Date.now();
     const rect = wheelRef.current.getBoundingClientRect();
@@ -432,7 +499,10 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange }: MealWh
       setVelocity((prev) => prev * 0.4 + newVelocity * 0.6);
     }
     
-    setWheelRotation(dragStartRotation + deltaAngle);
+    // Allow rotation to grow unbounded for seamless scrolling
+    const newRotation = dragStartRotation + deltaAngle;
+    setWheelRotation(newRotation);
+    
     setLastAngle(angle);
     setLastTime(now);
   };
@@ -447,6 +517,7 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange }: MealWh
       momentumTimeoutRef.current = setTimeout(() => {
         setVelocity(0);
         const snappedRotation = snapToNearestRestaurant(wheelRotation);
+        const normalizedSnapped = getNormalizedRotation(snappedRotation);
         setWheelRotation(snappedRotation);
         
         if (restaurants.length > 0) {
@@ -457,7 +528,7 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange }: MealWh
           for (let index = 0; index < restaurants.length; index++) {
             const restaurant = restaurants[index];
             const restaurantBaseAngle = index * angleStep - 90;
-            const restaurantCurrentAngle = (restaurantBaseAngle + snappedRotation) % 360;
+            const restaurantCurrentAngle = (restaurantBaseAngle + normalizedSnapped) % 360;
             const normalizedAngle = ((restaurantCurrentAngle % 360) + 360) % 360;
             const angleDiff = Math.min(
               Math.abs(normalizedAngle - 270),
@@ -592,6 +663,9 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange }: MealWh
   const angleStep = restaurantCount > 0 ? 360 / restaurantCount : 0;
   const radius = 39;
 
+  // Get normalized rotation for calculations (0-360) while keeping actual rotation unbounded
+  const normalizedRotation = getNormalizedRotation(wheelRotation);
+
   const getRestaurantAtTop = useCallback(() => {
     if (restaurants.length === 0) return null;
     
@@ -602,7 +676,8 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange }: MealWh
     for (let index = 0; index < restaurants.length; index++) {
       const restaurant = restaurants[index];
       const restaurantBaseAngle = index * angleStep - 90;
-      const restaurantCurrentAngle = (restaurantBaseAngle + wheelRotation) % 360;
+      // Use normalized rotation for calculation
+      const restaurantCurrentAngle = (restaurantBaseAngle + normalizedRotation) % 360;
       const normalizedAngle = ((restaurantCurrentAngle % 360) + 360) % 360;
       
       const angleDiff = Math.min(
@@ -617,7 +692,7 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange }: MealWh
     }
     
     return closestRestaurant;
-  }, [restaurants, wheelRotation]);
+  }, [restaurants, normalizedRotation]);
 
   // Auto-select restaurant when it reaches top position
   useEffect(() => {
@@ -625,10 +700,71 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange }: MealWh
     if (topRestaurant && topRestaurant.id !== selectedRestaurantId) {
       const timer = setTimeout(() => {
         setSelectedRestaurantId(topRestaurant.id);
+        if (onRestaurantChange) {
+          onRestaurantChange(topRestaurant.id);
+        }
       }, isWheelDragging ? 100 : 200);
       return () => clearTimeout(timer);
     }
-  }, [wheelRotation, getRestaurantAtTop, selectedRestaurantId, isWheelDragging]);
+  }, [wheelRotation, getRestaurantAtTop, selectedRestaurantId, isWheelDragging, onRestaurantChange, setSelectedRestaurantId]);
+
+  // Track previous external selectedRestaurantId to detect changes
+  const prevExternalSelectedRestaurantIdRef = useRef<number | null | undefined>(externalSelectedRestaurantId);
+  
+  // Rotate wheel when selectedRestaurantId changes externally - maintain seamless scrolling
+  useEffect(() => {
+    // Only react to actual changes in externalSelectedRestaurantId, not wheelRotation changes
+    if (
+      externalSelectedRestaurantId !== undefined && 
+      externalSelectedRestaurantId !== null && 
+      restaurants.length > 0 &&
+      externalSelectedRestaurantId !== prevExternalSelectedRestaurantIdRef.current &&
+      !isWheelDragging // Don't interfere with active dragging
+    ) {
+      prevExternalSelectedRestaurantIdRef.current = externalSelectedRestaurantId;
+      const restaurantIndex = restaurants.findIndex(r => r.id === externalSelectedRestaurantId);
+      if (restaurantIndex !== -1) {
+        const angleStep = 360 / restaurants.length;
+        const restaurantBaseAngle = restaurantIndex * angleStep - 90;
+        const targetNormalized = -90 - restaurantBaseAngle;
+        
+        // Calculate the closest equivalent rotation that maintains continuity
+        // Find how many full rotations we've done
+        const fullRotations = Math.floor(wheelRotation / 360);
+        const remainder = wheelRotation % 360;
+        
+        // Find the closest equivalent target rotation
+        let targetRotation = targetNormalized + (fullRotations * 360);
+        
+        // Adjust if we need to go to next/prev rotation for closest match
+        const diff = targetNormalized - getNormalizedRotation(remainder);
+        if (Math.abs(diff) > 180) {
+          if (diff > 0) {
+            targetRotation -= 360;
+          } else {
+            targetRotation += 360;
+          }
+        }
+        
+        // Stop any current momentum immediately
+        setTimeout(() => {
+          setVelocity(0);
+          setIsWheelDragging(false);
+          if (animationFrameRef.current) {
+            cancelAnimationFrame(animationFrameRef.current);
+            animationFrameRef.current = null;
+          }
+          if (momentumTimeoutRef.current) {
+            clearTimeout(momentumTimeoutRef.current);
+            momentumTimeoutRef.current = null;
+          }
+          
+          // Smoothly rotate to target position maintaining continuity
+          setWheelRotation(targetRotation);
+        }, 0);
+      }
+    }
+  }, [externalSelectedRestaurantId, restaurants, wheelRotation, getNormalizedRotation, isWheelDragging]);
 
   // Cleanup
   useEffect(() => {
@@ -654,14 +790,6 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange }: MealWh
     <div className="relative w-full">
       {/* Wheel Container */}
       <div className="relative">
-        {/* Selection Indicator - Minimal */}
-        <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 z-30 pointer-events-none">
-          <div className="flex flex-col items-center">
-            <div className="w-8 h-1.5 bg-gradient-to-r from-primary-500 to-primary-600 rounded-full shadow-sm" />
-            <div className="w-0 h-0 border-l-3 border-r-3 border-t-3 border-transparent border-t-primary-500 mt-0.5" />
-          </div>
-        </div>
-
         {/* Main Wheel */}
         <div
           ref={wheelRef}
@@ -673,23 +801,25 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange }: MealWh
           style={{ cursor: isWheelDragging ? 'grabbing' : 'grab' }}
         >
           {/* Outer Wheel - Clean design */}
-          <div className="absolute inset-0 rounded-full border border-gray-100 bg-white/80 backdrop-blur-sm shadow-lg overflow-hidden">
+          <div className="absolute inset-0 rounded-full bg-white/80 backdrop-blur-sm overflow-visible">
             {/* Rotating Restaurants */}
             <div
               className={cn(
                 "absolute inset-0",
-                !isWheelDragging && Math.abs(velocity) <= 0.2 && "wheel-transition"
+                (!isWheelDragging && Math.abs(velocity) <= 0.2) && "wheel-transition"
               )}
               style={{
                 transform: `rotate(${wheelRotation}deg)`,
                 willChange: 'transform',
+                transition: (!isWheelDragging && Math.abs(velocity) <= 0.2) ? 'transform 0.6s cubic-bezier(0.4, 0, 0.2, 1)' : 'none',
               }}
             >
               {restaurants.map((restaurant, index) => {
                 const angle = index * angleStep - 90;
                 const x = 50 + radius * Math.cos((angle * Math.PI) / 180);
                 const y = 50 + radius * Math.sin((angle * Math.PI) / 180);
-                const restaurantCurrentAngle = (index * angleStep - 90 + wheelRotation) % 360;
+                // Use normalized rotation for calculation
+                const restaurantCurrentAngle = (index * angleStep - 90 + normalizedRotation) % 360;
                 const normalizedAngle = ((restaurantCurrentAngle % 360) + 360) % 360;
                 const distanceToTop = Math.min(
                   Math.abs(normalizedAngle - 270),
@@ -707,19 +837,75 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange }: MealWh
                       transform: `translate(-50%, -50%) rotate(${-wheelRotation}deg)`,
                     }}
                   >
-                    <div className="relative">
+                    <div className="relative flex flex-col items-center">
+                      {/* Restaurant Name - Only show for top restaurant */}
+                      {isAtTop && (
+                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-3 z-20">
+                          <div className="px-2.5 py-1 bg-white/95 backdrop-blur-sm rounded-md text-xs font-medium text-gray-700 whitespace-nowrap shadow-sm">
+                            {restaurant.name}
+                          </div>
+                        </div>
+                      )}
+                      
                       {/* Restaurant Avatar */}
                       <div
+                        data-restaurant-avatar
                         className={cn(
                           'w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 transition-all duration-300',
-                          'rounded-full shadow-sm border-2 cursor-pointer',
+                          'cursor-pointer overflow-hidden relative z-10 bg-white shadow-md',
                           isAtTop
-                            ? 'scale-110 border-primary-500 shadow-md bg-white'
-                            : 'border-gray-200 bg-white hover:border-gray-300'
+                            ? 'scale-110 border-2 border-primary-500 shadow-lg'
+                            : 'border border-gray-900 hover:scale-105 hover:shadow-lg'
                         )}
-                        onClick={() => setSelectedRestaurantId(restaurant.id)}
+                        style={{
+                          borderRadius: '30% 70% 70% 30% / 30% 30% 70% 70%',
+                          transform: isAtTop ? 'scale(1.1)' : 'scale(1)',
+                        }}
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          // Snap wheel to this restaurant with smooth animation
+                          const angleStep = 360 / restaurants.length;
+                          const restaurantBaseAngle = index * angleStep - 90;
+                          const targetNormalized = -90 - restaurantBaseAngle;
+                          
+                          // Calculate the closest equivalent rotation that maintains continuity
+                          const fullRotations = Math.floor(wheelRotation / 360);
+                          const remainder = wheelRotation % 360;
+                          
+                          // Find the closest equivalent target rotation
+                          let targetRotation = targetNormalized + (fullRotations * 360);
+                          
+                          // Adjust if we need to go to next/prev rotation for closest match
+                          const diff = targetNormalized - getNormalizedRotation(remainder);
+                          if (Math.abs(diff) > 180) {
+                            if (diff > 0) {
+                              targetRotation -= 360;
+                            } else {
+                              targetRotation += 360;
+                            }
+                          }
+                          
+                          // Stop any current momentum
+                          setVelocity(0);
+                          setIsWheelDragging(false);
+                          if (animationFrameRef.current) {
+                            cancelAnimationFrame(animationFrameRef.current);
+                            animationFrameRef.current = null;
+                          }
+                          
+                          // Smoothly rotate to target position
+                          setWheelRotation(targetRotation);
+                          setSelectedRestaurantId(restaurant.id);
+                        }}
                       >
-                        <div className="w-full h-full rounded-full overflow-hidden flex items-center justify-center">
+                        <div className="w-full h-full overflow-hidden flex items-center justify-center" style={{
+                          borderRadius: '30% 70% 70% 30% / 30% 30% 70% 70%',
+                        }}>
                           {restaurant.image_url ? (
                             <img
                               src={restaurant.image_url}
@@ -731,15 +917,6 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange }: MealWh
                           )}
                         </div>
                       </div>
-                      
-                      {/* Restaurant Name - Only show for top restaurant */}
-                      {isAtTop && (
-                        <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2">
-                          <div className="px-3 py-1.5 bg-white rounded-lg shadow-sm border border-gray-100 text-sm font-medium text-gray-700 whitespace-nowrap">
-                            {restaurant.name}
-                          </div>
-                        </div>
-                      )}
                     </div>
                   </div>
                 );
@@ -748,7 +925,7 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange }: MealWh
 
             {/* Center Dish Display */}
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-40 h-40 sm:w-48 sm:h-48 md:w-56 md:h-56 lg:w-64 lg:h-64 bg-white rounded-full shadow-sm border border-gray-100 overflow-hidden relative">
+              <div className="w-40 h-40 sm:w-48 sm:h-48 md:w-56 md:h-56 lg:w-64 lg:h-64 bg-white rounded-full border border-gray-200 overflow-hidden relative">
                 {/* Dish Display */}
                 {selectedRestaurantItems.length === 0 ? (
                   <div className="w-full h-full flex flex-col items-center justify-center p-4">
@@ -764,6 +941,7 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange }: MealWh
                   <>
                     {/* Dish Slider */}
                     <div
+                      data-inner-menu
                       ref={sliderRef}
                       className="absolute inset-0 overflow-hidden"
                       style={{ cursor: isSliderDragging ? 'grabbing' : 'grab' }}
@@ -771,6 +949,22 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange }: MealWh
                       onTouchStart={handleSliderTouchStart}
                       onTouchMove={handleSliderTouchMove}
                       onTouchEnd={handleSliderTouchEnd}
+                      onMouseEnter={() => {
+                        setIsHoveringInnerMenu(true);
+                        if (onInnerMenuHoverChange) {
+                          onInnerMenuHoverChange(true);
+                        }
+                      }}
+                      onMouseLeave={() => {
+                        setIsHoveringInnerMenu(false);
+                        if (onInnerMenuHoverChange) {
+                          onInnerMenuHoverChange(false);
+                        }
+                      }}
+                      onWheel={(e) => {
+                        // Prevent wheel scrolling from affecting the outer wheel
+                        e.stopPropagation();
+                      }}
                     >
                       <div
                         className="flex h-full"

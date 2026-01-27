@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
@@ -11,7 +11,7 @@ import { Spinner } from '../components/common/Spinner';
 import { Input } from '../components/common/Input';
 import { MenuItemImage } from '../components/common/MenuItemImage';
 import { MealWheel } from '../components/common/MealWheel';
-import { UtensilsCrossed, ShoppingBag, Bike, Shield, Plus, Minus, Search, ShoppingCart, MapPin, Clock, Star, ChevronRight, ArrowRight } from 'lucide-react';
+import { UtensilsCrossed, ShoppingBag, Bike, Shield, Plus, Minus, Search, ShoppingCart, MapPin, ChevronRight, ArrowRight, ChevronLeft } from 'lucide-react';
 import { formatCurrency } from '../utils/formatters';
 import { toast } from 'sonner';
 import type { Restaurant } from '../types/restaurant.types';
@@ -22,7 +22,7 @@ interface MenuItemWithRestaurant extends MenuItem {
 }
 
 export const Home = () => {
-  const { isAuthenticated, role } = useAuthStore();
+  const { isAuthenticated } = useAuthStore();
   const { addItem, restaurantId: cartRestaurantId } = useCartStore();
   const [allMenuItems, setAllMenuItems] = useState<MenuItemWithRestaurant[]>([]);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
@@ -30,6 +30,7 @@ export const Home = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [quantities, setQuantities] = useState<Record<number, number>>({});
   const [selectedRestaurantId, setSelectedRestaurantId] = useState<number | null>(null);
+  const autoAdvanceIntervalRef = useRef<number | null>(null);
 
   useEffect(() => {
     fetchAllDishes();
@@ -92,20 +93,6 @@ export const Home = () => {
     }
   };
 
-  const getRoleDashboard = () => {
-    switch (role) {
-      case 'customer':
-        return '/stores';
-      case 'restaurant':
-        return '/store/dashboard';
-      case 'rider':
-        return '/rider/orders';
-      case 'admin':
-        return '/admin/dashboard';
-      default:
-        return '/stores';
-    }
-  };
 
   // Filter menu items based on search query
   const filteredMenuItems = allMenuItems.filter((item) => {
@@ -121,6 +108,43 @@ export const Home = () => {
   const selectedRestaurantMenuItems = selectedRestaurantId
     ? allMenuItems.filter((item) => item.restaurant_id === selectedRestaurantId && item.is_available)
     : [];
+
+  // Auto-advance to next restaurant every 8 seconds (pauses when hovering inner menu)
+  const [isHoveringInnerMenu, setIsHoveringInnerMenu] = useState(false);
+  
+  useEffect(() => {
+    if (restaurants.length === 0 || !selectedRestaurantId || isHoveringInnerMenu) {
+      if (autoAdvanceIntervalRef.current) {
+        clearInterval(autoAdvanceIntervalRef.current);
+        autoAdvanceIntervalRef.current = null;
+      }
+      return;
+    }
+
+    // Clear any existing interval
+    if (autoAdvanceIntervalRef.current) {
+      clearInterval(autoAdvanceIntervalRef.current);
+    }
+
+    // Set up auto-advance interval
+    autoAdvanceIntervalRef.current = window.setInterval(() => {
+      const currentIndex = restaurants.findIndex(r => r.id === selectedRestaurantId);
+      if (currentIndex !== -1) {
+        const nextIndex = currentIndex < restaurants.length - 1 ? currentIndex + 1 : 0;
+        const nextRestaurant = restaurants[nextIndex];
+        if (nextRestaurant) {
+          setSelectedRestaurantId(nextRestaurant.id);
+        }
+      }
+    }, 8000); // 8 seconds
+
+    return () => {
+      if (autoAdvanceIntervalRef.current) {
+        clearInterval(autoAdvanceIntervalRef.current);
+        autoAdvanceIntervalRef.current = null;
+      }
+    };
+  }, [restaurants, selectedRestaurantId, isHoveringInnerMenu]);
 
   return (
     <div>
@@ -196,14 +220,64 @@ export const Home = () => {
                       </div>
                     </div>
 
-                    {/* About Restaurant Button */}
-                    <Link
-                      to={`/stores/${selectedRestaurant.id}/menu`}
-                      className="group inline-flex items-center gap-2 text-xl text-gray-900 hover:text-primary-600 font-bold transition-colors"
-                    >
-                      <span>About Restaurant</span>
-                      <ArrowRight className="h-6 w-6 text-gray-400 group-hover:text-primary-600 group-hover:translate-x-1 transition-all" />
-                    </Link>
+                    {/* Navigation and About Restaurant */}
+                    <div className="flex items-center justify-between">
+                      {/* About Restaurant Button */}
+                      <Link
+                        to={`/stores/${selectedRestaurant.id}/menu`}
+                        className="group inline-flex items-center gap-2 text-xl text-gray-900 hover:text-primary-600 font-bold transition-colors"
+                      >
+                        <span>About Restaurant</span>
+                        <ArrowRight className="h-6 w-6 text-gray-400 group-hover:text-primary-600 group-hover:translate-x-1 transition-all" />
+                      </Link>
+
+                      {/* Navigation Buttons - Next to each other */}
+                      <div className="flex items-center gap-2">
+                        {/* Previous Restaurant Button */}
+                        <button
+                          onClick={() => {
+                            if (!selectedRestaurantId || restaurants.length === 0) return;
+                            const currentIndex = restaurants.findIndex(r => r.id === selectedRestaurantId);
+                            let prevIndex;
+                            if (currentIndex > 0) {
+                              prevIndex = currentIndex - 1;
+                            } else {
+                              prevIndex = restaurants.length - 1;
+                            }
+                            const prevRestaurant = restaurants[prevIndex];
+                            if (prevRestaurant) {
+                              setSelectedRestaurantId(prevRestaurant.id);
+                            }
+                          }}
+                          className="p-2 rounded-full border border-gray-300 hover:border-primary-500 hover:bg-gray-50 transition-all group"
+                          aria-label="Previous restaurant"
+                        >
+                          <ChevronLeft className="h-5 w-5 text-gray-600 group-hover:text-primary-600 transition-colors" />
+                        </button>
+
+                        {/* Next Restaurant Button */}
+                        <button
+                          onClick={() => {
+                            if (!selectedRestaurantId || restaurants.length === 0) return;
+                            const currentIndex = restaurants.findIndex(r => r.id === selectedRestaurantId);
+                            let nextIndex;
+                            if (currentIndex < restaurants.length - 1) {
+                              nextIndex = currentIndex + 1;
+                            } else {
+                              nextIndex = 0;
+                            }
+                            const nextRestaurant = restaurants[nextIndex];
+                            if (nextRestaurant) {
+                              setSelectedRestaurantId(nextRestaurant.id);
+                            }
+                          }}
+                          className="p-2 rounded-full border border-gray-300 hover:border-primary-500 hover:bg-gray-50 transition-all group"
+                          aria-label="Next restaurant"
+                        >
+                          <ChevronRight className="h-5 w-5 text-gray-600 group-hover:text-primary-600 transition-colors" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div className="p-12 lg:p-16 text-center">
@@ -234,7 +308,9 @@ export const Home = () => {
                   <MealWheel
                     restaurants={restaurants}
                     menuItems={allMenuItems}
+                    selectedRestaurantId={selectedRestaurantId}
                     onRestaurantChange={setSelectedRestaurantId}
+                    onInnerMenuHoverChange={setIsHoveringInnerMenu}
                   />
                 </div>
               </div>
@@ -292,7 +368,8 @@ export const Home = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredMenuItems.map((item) => (
-              <Card key={item.id} id={`dish-${item.id}`} className="hover:shadow-lg transition-shadow">
+              <div key={item.id} id={`dish-${item.id}`}>
+                <Card className="hover:shadow-lg transition-shadow">
                 <div className="mb-4">
                   <MenuItemImage src={item.image_url} alt={item.name} />
                 </div>
@@ -343,7 +420,8 @@ export const Home = () => {
                     </Button>
                   </div>
                 )}
-              </Card>
+                </Card>
+              </div>
             ))}
           </div>
         )}
