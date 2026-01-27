@@ -17,7 +17,9 @@ function normalizeOrderList(list: any[]): Order[] {
       : o.status === 'pending'
         ? 'unpaid'
         : ('paid' as const);
-    return { ...o, total: !isNaN(total) && total >= 0 ? total : 0, payment_status } as Order;
+    const items = Array.isArray(o.items) ? o.items : Array.isArray(o.order_items) ? o.order_items : [];
+    const user = o.user ?? o.customer;
+    return { ...o, items, user, total: !isNaN(total) && total >= 0 ? total : 0, payment_status } as Order;
   });
 }
 
@@ -37,9 +39,15 @@ export const ordersApi = {
     if (!order || typeof order !== 'object') throw new Error('Order not found');
     const rawTotal = order.total ?? order.total_amount ?? data.total;
     let total = typeof rawTotal === 'string' ? parseFloat(rawTotal) : Number(rawTotal);
+    const rawItems = Array.isArray(order.items) ? order.items : Array.isArray(order.order_items) ? order.order_items : [];
+    const items = rawItems.map((i: any) => {
+      const price = Number(i.unit_price ?? i.price ?? 0);
+      const qty = Number(i.quantity ?? 0);
+      const subtotal = Number(i.subtotal ?? price * qty);
+      return { ...i, price, quantity: qty, subtotal, menu_item: i.menu_item ?? i.menuItem };
+    });
     if (!total || isNaN(total)) {
-      const items = Array.isArray(order.items) ? order.items : [];
-      total = items.reduce((sum: number, i: { price?: number; quantity?: number }) => sum + (Number(i?.price) || 0) * (Number(i?.quantity) || 0), 0);
+      total = items.reduce((sum, i) => sum + ((i as any).subtotal ?? Number(i.price) * (Number(i.quantity) || 0)), 0);
     }
     const ps = (order.payment_status ?? '').toString().toLowerCase();
     const payment_status = ['unpaid', 'pending', 'paid', 'failed'].includes(ps)
@@ -47,7 +55,8 @@ export const ordersApi = {
       : order.status === 'pending'
         ? 'unpaid'
         : 'paid';
-    return { ...order, total, payment_status } as Order;
+    const user = order.user ?? order.customer;
+    return { ...order, items, user, total: !isNaN(total) && total >= 0 ? total : 0, payment_status } as Order;
   },
 
   create: async (data: CreateOrderData): Promise<Order> => {

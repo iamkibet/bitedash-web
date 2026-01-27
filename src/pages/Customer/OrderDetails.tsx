@@ -8,7 +8,17 @@ import { formatCurrency, formatDate } from '../../utils/formatters';
 import { ORDER_STATUSES, PAYMENT_STATUSES } from '../../utils/constants';
 import { isUnpaid, canCancelOrder, getNextStatusTransitions } from '../../utils/orderLifecycle';
 import { Button } from '../../components/common/Button';
-import { ArrowLeft, CreditCard, Truck, CheckCircle } from 'lucide-react';
+import {
+  ArrowLeft,
+  CreditCard,
+  Truck,
+  CheckCircle,
+  Store,
+  MapPin,
+  Clock,
+  User,
+  Package,
+} from 'lucide-react';
 import { MenuItemImage } from '../../components/common/MenuItemImage';
 import type { OrderStatus } from '../../types/order.types';
 
@@ -68,20 +78,24 @@ export const OrderDetails = () => {
     ? PAYMENT_STATUSES[currentOrder.payment_status as keyof typeof PAYMENT_STATUSES]
     : null;
 
+  const orderItems = currentOrder.items ?? [];
+  const customer = currentOrder.user ?? (currentOrder as { customer?: { name?: string; phone?: string } }).customer;
+
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="max-w-3xl mx-auto space-y-6">
+      {/* Back nav */}
       <Button
         variant="outline"
         onClick={() => navigate(isStoreView ? '/store/orders' : '/orders')}
-        className="mb-4"
+        className="gap-2"
       >
-        <ArrowLeft className="h-4 w-4 mr-2" />
+        <ArrowLeft className="h-4 w-4" />
         {isStoreView ? 'Back to Store Orders' : 'Back to Orders'}
       </Button>
 
       {/* Pay Now CTA - customer only, when unpaid */}
       {!isStoreView && unpaid && (
-        <Card className="mb-6 border-2 border-primary-300 bg-gradient-to-br from-primary-50 to-white">
+        <Card className="border-2 border-primary-300 bg-gradient-to-br from-primary-50 to-white" padding="lg">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h2 className="text-xl font-bold text-gray-900 mb-1">Payment required</h2>
@@ -100,24 +114,32 @@ export const OrderDetails = () => {
         </Card>
       )}
 
-      <Card className="mb-6">
-        <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+      {/* Order header */}
+      <Card>
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
               Order #{currentOrder.id}
             </h1>
-            <Badge variant={statusConfig.color as any} className="text-base">
-              {statusConfig.icon} {statusConfig.label}
-            </Badge>
-            {paymentConfig && (
-              <Badge variant={paymentConfig.color as any}>
-                {paymentConfig.label}
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant={statusConfig.color as 'success' | 'warning' | 'error' | 'info' | 'default'}>
+                {statusConfig.icon} {statusConfig.label}
               </Badge>
-            )}
+              {paymentConfig && (
+                <Badge variant={paymentConfig.color as 'success' | 'warning' | 'error' | 'info' | 'default'}>
+                  {paymentConfig.label}
+                </Badge>
+              )}
+              <span className="inline-flex items-center gap-1.5 text-sm text-gray-500">
+                <Clock className="h-4 w-4" />
+                {formatDate(currentOrder.created_at)}
+              </span>
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
             {!isStoreView && unpaid && (
               <Button
+                size="sm"
                 onClick={() => navigate(`/orders/${currentOrder.id}/payment`)}
                 className="gap-2"
               >
@@ -146,74 +168,109 @@ export const OrderDetails = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          <div>
-            <p className="text-sm text-gray-600">Store</p>
-            <p className="font-semibold">{currentOrder.restaurant?.name}</p>
+        {/* Summary grid: Store, Delivery, Rider, Customer (store view) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-gray-200">
+          <div className="flex gap-3">
+            <div className="p-2 h-fit rounded-lg bg-gray-100">
+              <Store className="h-5 w-5 text-gray-600" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Store</p>
+              <p className="font-semibold text-gray-900">{currentOrder.restaurant?.name ?? '—'}</p>
+              {currentOrder.restaurant?.location && (
+                <p className="text-sm text-gray-500">{currentOrder.restaurant.location}</p>
+              )}
+            </div>
           </div>
-          <div>
-            <p className="text-sm text-gray-600">Order Date</p>
-            <p className="font-semibold">{formatDate(currentOrder.created_at)}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-600">Delivery Address</p>
-            <p className="font-semibold">{currentOrder.delivery_address}</p>
+          <div className="flex gap-3">
+            <div className="p-2 h-fit rounded-lg bg-gray-100">
+              <MapPin className="h-5 w-5 text-gray-600" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Delivery address</p>
+              <p className="font-semibold text-gray-900">{currentOrder.delivery_address}</p>
+            </div>
           </div>
           {currentOrder.rider && (
-            <div>
-              <p className="text-sm text-gray-600">
-                {isStoreView ? 'Picked up by' : 'Rider'}
-              </p>
-              <p className="font-semibold">{currentOrder.rider.name}</p>
-              <p className="text-sm text-gray-500">{currentOrder.rider.phone}</p>
+            <div className="flex gap-3 sm:col-span-2">
+              <div className="p-2 h-fit rounded-lg bg-blue-50">
+                <Truck className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                  {isStoreView ? 'Picked up by' : 'Rider'}
+                </p>
+                <p className="font-semibold text-gray-900">{currentOrder.rider.name}</p>
+                <p className="text-sm text-gray-500">{currentOrder.rider.phone}</p>
+              </div>
+            </div>
+          )}
+          {isStoreView && customer && (
+            <div className="flex gap-3 sm:col-span-2">
+              <div className="p-2 h-fit rounded-lg bg-gray-100">
+                <User className="h-5 w-5 text-gray-600" />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Customer</p>
+                <p className="font-semibold text-gray-900">{customer.name}</p>
+                <p className="text-sm text-gray-500">{customer.phone}</p>
+              </div>
             </div>
           )}
         </div>
 
         {currentOrder.notes && (
-          <div className="mb-4">
-            <p className="text-sm text-gray-600">Notes</p>
-            <p className="font-semibold">{currentOrder.notes}</p>
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Notes</p>
+            <p className="text-gray-700">{currentOrder.notes}</p>
           </div>
         )}
       </Card>
 
+      {/* What's ordered – prominent section */}
       <Card>
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Order Items</h2>
-        <div className="space-y-3">
-          {(currentOrder.items ?? []).length === 0 ? (
-            <p className="text-center text-gray-500 py-4">No items found in this order.</p>
-          ) : (
-            (currentOrder.items ?? []).map((item) => (
-            <div
-              key={item.id}
-              className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-16 shrink-0">
-                  <MenuItemImage
-                    src={item.menu_item.image_url}
-                    alt={item.menu_item.name}
-                    aspectRatio={1}
-                  />
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-900">{item.menu_item.name}</p>
-                  <p className="text-sm text-gray-600">
-                    {formatCurrency(item.price)} × {item.quantity}
-                  </p>
-                </div>
-              </div>
-              <p className="font-semibold text-gray-900">
-                {formatCurrency(item.price * item.quantity)}
-              </p>
-            </div>
-            ))
-          )}
+        <div className="flex items-center gap-2 mb-4">
+          <Package className="h-5 w-5 text-gray-600" />
+          <h2 className="text-xl font-semibold text-gray-900">What&apos;s ordered</h2>
         </div>
-        <div className="mt-4 pt-4 border-t flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-          <div className="flex justify-between items-center">
-            <span className="text-xl font-semibold text-gray-900">Total</span>
+        {orderItems.length === 0 ? (
+          <p className="text-center text-gray-500 py-8">No items in this order.</p>
+        ) : (
+          <div className="space-y-4">
+            {orderItems.map((item) => {
+              const menuItem = item.menu_item;
+              const name = menuItem?.name ?? 'Unknown item';
+              const price = Number(item.price ?? 0);
+              const qty = Number(item.quantity ?? 0);
+              const lineTotal = Number((item as { subtotal?: number }).subtotal ?? price * qty);
+              return (
+                <div
+                  key={item.id}
+                  className="flex gap-4 p-4 rounded-xl bg-gray-50 border border-gray-100 hover:border-gray-200 transition-colors"
+                >
+                  <div className="w-20 sm:w-24 shrink-0 rounded-lg overflow-hidden bg-white border border-gray-200">
+                    <MenuItemImage src={menuItem?.image_url} alt={name} aspectRatio={1} />
+                  </div>
+                  <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div>
+                      <p className="font-semibold text-gray-900">{name}</p>
+                      <p className="text-sm text-gray-600">
+                        {formatCurrency(price)} × {qty}
+                      </p>
+                    </div>
+                    <p className="font-semibold text-gray-900 sm:text-right">
+                      {formatCurrency(lineTotal)}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="mt-6 pt-4 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-baseline justify-between sm:justify-start gap-4">
+            <span className="text-lg font-semibold text-gray-900">Total</span>
             <span className="text-2xl font-bold text-primary-600">
               {formatCurrency(currentOrder.total ?? 0)}
             </span>

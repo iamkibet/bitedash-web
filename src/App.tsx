@@ -2,7 +2,8 @@ import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { useAuthStore } from './store/authStore';
-import { Layout } from './components/layout/Layout';
+import { PublicLayout } from './components/layout/PublicLayout';
+import { AppLayout } from './components/layout/AppLayout';
 import { ProtectedRoute } from './components/layout/ProtectedRoute';
 
 // Auth Pages
@@ -11,6 +12,9 @@ import { Register } from './pages/Auth/Register';
 
 // Home
 import { Home } from './pages/Home';
+import { About } from './pages/About';
+import { Services } from './pages/Services';
+import { Contact } from './pages/Contact';
 
 // Customer Pages
 import { Restaurants } from './pages/Customer/Restaurants';
@@ -44,21 +48,23 @@ function App() {
     <BrowserRouter future={{ v7_relativeSplatPath: true }}>
       <Toaster position="top-right" richColors />
       <Routes>
-        {/* Public Routes */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-
-        {/* Routes with Layout */}
-        <Route element={<Layout><Outlet /></Layout>}>
+        {/* Public Layout Routes - Homepage, public browsing, and auth pages */}
+        <Route element={<PublicLayout><Outlet /></PublicLayout>}>
           <Route path="/" element={<Home />} />
-          
-          {/* Public store browsing (no auth required) */}
           <Route path="/stores" element={<Restaurants />} />
           <Route path="/stores/:id/menu" element={<Menu />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/services" element={<Services />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/cart" element={<Cart />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+        </Route>
 
+        {/* App Layout Routes - Dashboard pages with sidebar */}
+        <Route element={<AppLayout><Outlet /></AppLayout>}>
           {/* Customer Routes */}
           <Route element={<ProtectedRoute requiredRole="customer" />}>
-            <Route path="/cart" element={<Cart />} />
             <Route path="/orders" element={<Orders />} />
             <Route path="/orders/:id" element={<OrderDetails />} />
             <Route path="/orders/:id/payment" element={<Payment />} />

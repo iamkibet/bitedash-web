@@ -79,7 +79,7 @@ export const Register = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="flex items-center justify-center min-h-[60vh] py-12">
       <Card className="w-full max-w-md">
         <div className="text-center mb-6">
           <h2 className="text-3xl font-bold text-gray-900">Create an account</h2>

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { loginSchema } from '../../utils/validators';
 import { useAuthStore } from '../../store/authStore';
 import { Button } from '../../components/common/Button';
@@ -27,8 +27,12 @@ function getDashboardPath(role: UserRole | null): string {
 
 export const Login = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login, isLoading } = useAuthStore();
   const [formError, setFormError] = useState<string | null>(null);
+  
+  // Get returnTo from location state (for redirecting after login)
+  const returnTo = (location.state as { returnTo?: string })?.returnTo;
   const {
     register,
     handleSubmit,
@@ -42,7 +46,8 @@ export const Login = () => {
     try {
       await login(data);
       const role = useAuthStore.getState().role;
-      navigate(getDashboardPath(role));
+      // Redirect to returnTo if provided, otherwise to dashboard
+      navigate(returnTo || getDashboardPath(role));
     } catch (err: unknown) {
       const e = err as { message?: string };
       const msg = e?.message || 'Login failed. Please try again.';
@@ -52,7 +57,7 @@ export const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="flex items-center justify-center min-h-[60vh] py-12">
       <Card className="w-full max-w-md">
         <div className="text-center mb-6">
           <h2 className="text-3xl font-bold text-gray-900">Welcome back</h2>

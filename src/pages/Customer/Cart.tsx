@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useCartStore } from '../../store/cartStore';
 import { useOrderStore } from '../../store/orderStore';
+import { useAuthStore } from '../../store/authStore';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
@@ -11,6 +12,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { toast } from 'sonner';
 
 const orderSchema = z.object({
   delivery_address: z.string().min(1, 'Delivery address is required').max(500),
@@ -21,6 +23,7 @@ type OrderFormData = z.infer<typeof orderSchema>;
 
 export const Cart = () => {
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuthStore();
   const {
     items,
     restaurantId,
@@ -42,6 +45,13 @@ export const Cart = () => {
 
   const onSubmit = async (data: OrderFormData) => {
     if (!restaurantId || items.length === 0) {
+      return;
+    }
+
+    // Check if user is authenticated before placing order
+    if (!isAuthenticated) {
+      toast.error('Please sign in to place an order');
+      navigate('/login', { state: { returnTo: '/cart' } });
       return;
     }
 
@@ -172,7 +182,7 @@ export const Cart = () => {
                   className="w-full"
                   isLoading={isSubmitting || isLoading}
                 >
-                  Place Order
+                  Checkout
                 </Button>
               </div>
             </form>

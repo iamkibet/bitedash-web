@@ -71,12 +71,22 @@ export const restaurantsApi = {
       const data = response.data as any;
       const store = data?.data ?? data;
       const statistics = data?.statistics ?? data?.data?.statistics ?? store?.statistics ?? null;
+      
+      // Log for debugging
+      console.log('getMyStoreWithStats response:', { store, statistics, rawData: data });
+      
       return {
-        store: store && typeof store === 'object' ? store : null,
+        store: store && typeof store === 'object' && store.id ? store : null,
         statistics: statistics && typeof statistics === 'object' ? statistics : undefined,
       };
-    } catch (error: unknown) {
-      const err = error as { response?: { status?: number } };
+    } catch (error: any) {
+      const err = error as { response?: { status?: number; data?: any } };
+      console.error('getMyStoreWithStats error:', {
+        status: err.response?.status,
+        data: err.response?.data,
+        message: error?.message,
+      });
+      
       if (err.response?.status === 404) {
         return { store: null, statistics: undefined };
       }
