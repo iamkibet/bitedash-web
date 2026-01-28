@@ -217,33 +217,33 @@ export const Navbar = ({ onMenuClick, showMenuButton = false }: NavbarProps = {}
             )}
           </div>
 
-          {/* Mobile menu button - Only show if not in AppLayout */}
-          {!showMenuButton && (
-            <button
-              className="md:hidden text-gray-700"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          {/* Mobile Actions - Cart and Menu Button */}
+          <div className="md:hidden flex items-center gap-3">
+            {/* Cart Icon - Always visible on mobile */}
+            <Link
+              to="/cart"
+              className="relative text-gray-700 hover:text-primary-600 transition-colors"
+              aria-label={`Shopping cart${cartItemCount > 0 ? ` with ${cartItemCount} items` : ''}`}
             >
-              <Menu className="h-6 w-6" />
-            </button>
-          )}
+              <ShoppingCart className="h-6 w-6" />
+              {cartItemCount > 0 && (
+                <span className="absolute -top-2 -right-2 bg-primary-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
+                  {cartItemCount}
+                </span>
+              )}
+            </Link>
 
-          {/* Mobile user actions - Always show */}
-          {showMenuButton && (
-            <div className="md:hidden flex items-center gap-2">
-              <Link
-                to="/cart"
-                className="relative text-gray-700 hover:text-primary-600 transition-colors"
-                aria-label={`Shopping cart${cartItemCount > 0 ? ` with ${cartItemCount} items` : ''}`}
+            {/* Mobile menu button - Only show if not in AppLayout */}
+            {!showMenuButton && (
+              <button
+                className="text-gray-700 hover:text-primary-600 transition-colors"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                aria-label="Toggle menu"
               >
-                <ShoppingCart className="h-6 w-6" />
-                {cartItemCount > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-primary-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
-                    {cartItemCount}
-                  </span>
-                )}
-              </Link>
-            </div>
-          )}
+                <Menu className="h-6 w-6" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Mobile Navigation - Only show if not in AppLayout */}
@@ -293,22 +293,6 @@ export const Navbar = ({ onMenuClick, showMenuButton = false }: NavbarProps = {}
                 ))}
               </>
             )}
-            {/* Cart Link - Show for everyone in mobile menu */}
-            <Link
-              to="/cart"
-              className="block px-4 py-2 text-gray-700 hover:bg-gray-100 rounded relative"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              <div className="flex items-center gap-2">
-                <ShoppingCart className="h-5 w-5" />
-                <span>Cart</span>
-                {cartItemCount > 0 && (
-                  <span className="bg-primary-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
-                    {cartItemCount}
-                  </span>
-                )}
-              </div>
-            </Link>
 
             {isAuthenticated ? (
               <>

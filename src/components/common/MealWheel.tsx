@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { useCartStore } from '../../store/cartStore';
 import { useAuthStore } from '../../store/authStore';
 import { MenuItemImage } from './MenuItemImage';
 import { Button } from './Button';
 import { Modal } from './Modal';
 import { formatCurrency } from '../../utils/formatters';
-import { ShoppingCart, ChevronLeft, ChevronRight, UtensilsCrossed, Plus, Minus } from 'lucide-react';
+import { ShoppingCart, ChevronLeft, ChevronRight, UtensilsCrossed, Plus, Minus, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '../../utils/cn';
 import { MAX_CART_ITEM_QUANTITY } from '../../utils/constants';
@@ -22,9 +23,12 @@ interface MealWheelProps {
   onRestaurantChange?: (restaurantId: number | null) => void;
   selectedRestaurantId?: number | null; // Allow parent to control selection
   onInnerMenuHoverChange?: (isHovering: boolean) => void; // Notify parent when hovering inner menu
+  showOnlyInnerMenu?: boolean; // Show only the inner menu (for mobile layout)
+  onNavigatePrev?: () => void; // Navigation callback for previous restaurant
+  onNavigateNext?: () => void; // Navigation callback for next restaurant
 }
 
-export const MealWheel = ({ restaurants, menuItems, onRestaurantChange, selectedRestaurantId: externalSelectedRestaurantId, onInnerMenuHoverChange }: MealWheelProps) => {
+export const MealWheel = ({ restaurants, menuItems, onRestaurantChange, selectedRestaurantId: externalSelectedRestaurantId, onInnerMenuHoverChange, showOnlyInnerMenu = false, onNavigatePrev, onNavigateNext }: MealWheelProps) => {
   const { addItem, restaurantId: cartRestaurantId } = useCartStore();
   const { isAuthenticated } = useAuthStore();
   const [internalSelectedRestaurantId, setInternalSelectedRestaurantId] = useState<number | null>(() => 
@@ -786,6 +790,202 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange, selected
     );
   }
 
+  // Mobile: Show circular menu display with navigation buttons (like desktop)
+  if (showOnlyInnerMenu) {
+    return (
+      <div className="w-full flex flex-col items-center">
+        {/* Restaurant Info Section */}
+        {selectedRestaurant && (
+          <div className="w-full p-4 mb-6 bg-gradient-to-br from-primary-50 to-primary-100 rounded-2xl border border-primary-200">
+            {selectedRestaurant.description && (
+              <p className="text-sm text-gray-700 leading-relaxed mb-4 text-center">
+                {selectedRestaurant.description}
+              </p>
+            )}
+                  <div className="flex items-center justify-between gap-3">
+                    <Link
+                      to={`/stores/${selectedRestaurant.id}/menu`}
+                      className="inline-flex items-center gap-2 text-base text-primary-700 hover:text-primary-800 font-bold transition-colors flex-1"
+                    >
+                      <span className="hidden sm:inline">About Restaurant</span>
+                      <span className="sm:hidden">About</span>
+                      <ArrowRight className="h-5 w-5" />
+                    </Link>
+              
+              {/* Navigation Buttons for Restaurants */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (onNavigatePrev) {
+                      onNavigatePrev();
+                    }
+                  }}
+                  className="p-2 rounded-full hover:bg-primary-100 transition-all shadow-sm bg-white"
+                  aria-label="Previous restaurant"
+                >
+                  <ChevronLeft className="h-5 w-5 text-primary-700" />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (onNavigateNext) {
+                      onNavigateNext();
+                    }
+                  }}
+                  className="p-2 rounded-full hover:bg-primary-100 transition-all shadow-sm bg-white"
+                  aria-label="Next restaurant"
+                >
+                  <ChevronRight className="h-5 w-5 text-primary-700" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Menu Display - Plate Design */}
+        <div className="relative w-full max-w-sm mx-auto">
+          {selectedRestaurantItems.length === 0 ? (
+            <div className="flex flex-col items-center justify-center p-8">
+              <div className="w-16 h-16 rounded-full bg-gray-50 flex items-center justify-center mb-3">
+                <UtensilsCrossed className="h-8 w-8 text-gray-300" />
+              </div>
+              <p className="text-gray-500 text-sm">No dishes</p>
+              <p className="text-xs text-gray-400 mt-1">
+                {selectedRestaurant?.name || 'Select restaurant'}
+              </p>
+            </div>
+          ) : (
+            <div className="relative">
+              {/* Dish Slider */}
+              <div
+                data-inner-menu
+                ref={sliderRef}
+                className="overflow-hidden"
+                style={{ cursor: isSliderDragging ? 'grabbing' : 'grab' }}
+                onMouseDown={handleSliderMouseDown}
+                onTouchStart={handleSliderTouchStart}
+                onTouchMove={handleSliderTouchMove}
+                onTouchEnd={handleSliderTouchEnd}
+                onMouseEnter={() => {
+                  setIsHoveringInnerMenu(true);
+                  if (onInnerMenuHoverChange) {
+                    onInnerMenuHoverChange(true);
+                  }
+                }}
+                onMouseLeave={() => {
+                  setIsHoveringInnerMenu(false);
+                  if (onInnerMenuHoverChange) {
+                    onInnerMenuHoverChange(false);
+                  }
+                }}
+                onWheel={(e) => {
+                  e.stopPropagation();
+                }}
+              >
+                <div
+                  className="flex"
+                  style={{
+                    transform: `translateX(calc(-${currentDishIndex * 100}% + ${sliderDragOffset}px))`,
+                    transition: isSliderDragging ? 'none' : 'transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+                    willChange: isSliderDragging ? 'transform' : 'auto',
+                  }}
+                >
+                  {selectedRestaurantItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className="w-full flex-shrink-0 flex flex-col items-center justify-center px-4 py-6 cursor-pointer"
+                      onClick={() => {
+                        if (!isSliderDragging && Math.abs(sliderDragOffset) < 10) {
+                          handleDishClick(item);
+                        }
+                      }}
+                    >
+                      {/* Dish Image on Plate */}
+                      <div className="relative mb-4">
+                        {/* Plate Design */}
+                        <div className="relative w-32 h-32 sm:w-36 sm:h-36">
+                          {/* Plate Base */}
+                          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 shadow-lg"></div>
+                          {/* Plate Rim */}
+                          <div className="absolute inset-2 rounded-full bg-white border-4 border-gray-300 shadow-inner"></div>
+                          {/* Food Image */}
+                          <div className="absolute inset-4 rounded-full overflow-hidden">
+                            <MenuItemImage
+                              src={item.image_url}
+                              alt={item.name}
+                              className="rounded-full"
+                              aspectRatio={1}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Dish Info */}
+                      <div className="text-center px-2">
+                        <h3 className="text-sm sm:text-base font-medium text-gray-900 mb-2 line-clamp-2 leading-tight">
+                          {item.name}
+                        </h3>
+                        <div className="flex items-center justify-center gap-2">
+                          <span className="text-base sm:text-lg font-bold text-gray-900">
+                            {formatCurrency(item.price)}
+                          </span>
+                          {item.is_available ? (
+                            <span className="text-xs text-green-600">• Available</span>
+                          ) : (
+                            <span className="text-xs text-red-600">• Sold Out</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Navigation Buttons for Menu Items */}
+              {selectedRestaurantItems.length > 1 && (
+                <>
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (currentDishIndex > 0) {
+                        setCurrentDishIndex(currentDishIndex - 1);
+                      } else {
+                        setCurrentDishIndex(selectedRestaurantItems.length - 1);
+                      }
+                    }}
+                    className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full hover:bg-primary-100 transition-all shadow-md bg-white z-10"
+                    aria-label="Previous dish"
+                  >
+                    <ChevronLeft className="h-5 w-5 text-primary-700" />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (currentDishIndex < selectedRestaurantItems.length - 1) {
+                        setCurrentDishIndex(currentDishIndex + 1);
+                      } else {
+                        setCurrentDishIndex(0);
+                      }
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full hover:bg-primary-100 transition-all shadow-md bg-white z-10"
+                    aria-label="Next dish"
+                  >
+                    <ChevronRight className="h-5 w-5 text-primary-700" />
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="relative w-full">
       {/* Wheel Container */}
@@ -925,7 +1125,7 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange, selected
 
             {/* Center Dish Display */}
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-40 h-40 sm:w-48 sm:h-48 md:w-56 md:h-56 lg:w-64 lg:h-64 bg-white rounded-full border border-gray-200 overflow-hidden relative">
+              <div className="w-40 h-40 sm:w-48 sm:h-48 md:w-56 md:h-56 lg:w-64 lg:h-64 bg-primary-50 rounded-full border border-primary-200 overflow-hidden relative">
                 {/* Dish Display */}
                 {selectedRestaurantItems.length === 0 ? (
                   <div className="w-full h-full flex flex-col items-center justify-center p-4">
