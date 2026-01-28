@@ -59,26 +59,19 @@ export const Navbar = ({ onMenuClick, showMenuButton = false }: NavbarProps = {}
     switch (role) {
       case 'customer':
         return [
-          { path: '/stores', label: 'Stores' },
-          { path: '/orders', label: 'My Orders' },
+          { path: '/dashboard', label: 'Dashboard' },
         ];
       case 'restaurant':
         return [
           { path: '/store/dashboard', label: 'Dashboard' },
-          { path: '/store/menu', label: 'Menu' },
-          { path: '/store/orders', label: 'Orders' },
         ];
       case 'rider':
         return [
-          { path: '/rider/orders', label: 'Available Orders' },
-          { path: '/rider/deliveries', label: 'My Deliveries' },
+          { path: '/rider/dashboard', label: 'Dashboard' },
         ];
       case 'admin':
         return [
           { path: '/admin/dashboard', label: 'Dashboard' },
-          { path: '/admin/users', label: 'Users' },
-          { path: '/admin/stores', label: 'Stores' },
-          { path: '/admin/orders', label: 'Orders' },
         ];
       default:
         return [];
@@ -173,48 +166,59 @@ export const Navbar = ({ onMenuClick, showMenuButton = false }: NavbarProps = {}
               )}
             </Link>
 
-            {isAuthenticated ? (
-              <>
-                <div className="flex items-center gap-2">
-                  <User className="h-5 w-5 text-gray-600" />
-                  <span className="text-gray-700">{user?.name}</span>
-                </div>
-                <Button variant="outline" size="sm" onClick={handleLogout}>
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Logout
-                </Button>
-              </>
-            ) : (
-              <div className="relative" ref={profileMenuRef}>
-                <button
-                  onClick={() => setProfileMenuOpen(!profileMenuOpen)}
-                  className="flex items-center gap-2 text-gray-700 hover:text-primary-600 transition-colors p-2 rounded-lg hover:bg-gray-50"
-                  aria-label="Account menu"
-                >
-                  <User className="h-6 w-6" />
-                  <ChevronDown className={cn('h-4 w-4 transition-transform', profileMenuOpen && 'rotate-180')} />
-                </button>
+            {/* Profile / Account Menu */}
+            <div className="relative" ref={profileMenuRef}>
+              <button
+                onClick={() => setProfileMenuOpen(!profileMenuOpen)}
+                className="flex items-center gap-2 text-gray-700 hover:text-primary-600 transition-colors p-2 rounded-lg hover:bg-gray-50"
+                aria-label="Account menu"
+              >
+                <User className="h-6 w-6" />
+                <ChevronDown className={cn('h-4 w-4 transition-transform', profileMenuOpen && 'rotate-180')} />
+              </button>
 
-                {profileMenuOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
-                    <Link
-                      to="/login"
-                      onClick={() => setProfileMenuOpen(false)}
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                    >
-                      Login
-                    </Link>
-                    <Link
-                      to="/register"
-                      onClick={() => setProfileMenuOpen(false)}
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                    >
-                      Register
-                    </Link>
-                  </div>
-                )}
-              </div>
-            )}
+              {profileMenuOpen && (
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
+                  {isAuthenticated ? (
+                    <>
+                      <div className="px-4 py-3 border-b border-gray-100">
+                        <p className="text-xs text-gray-500">Signed in as</p>
+                        <p className="text-sm font-semibold text-gray-900 truncate">
+                          {user?.name || 'Account'}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          handleLogout();
+                          setProfileMenuOpen(false);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                      >
+                        <LogOut className="h-4 w-4" />
+                        <span>Logout</span>
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <Link
+                        to="/login"
+                        onClick={() => setProfileMenuOpen(false)}
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        Login
+                      </Link>
+                      <Link
+                        to="/register"
+                        onClick={() => setProfileMenuOpen(false)}
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        Register
+                      </Link>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Mobile Actions - Cart and Menu Button */}
@@ -296,7 +300,17 @@ export const Navbar = ({ onMenuClick, showMenuButton = false }: NavbarProps = {}
 
             {isAuthenticated ? (
               <>
-                <div className="px-4 py-2 text-gray-700">{user?.name}</div>
+                <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Profile
+                </div>
+                <div className="px-4 pb-2 text-sm text-gray-700">
+                  <div className="font-semibold truncate">{user?.name || 'Account'}</div>
+                  {role && (
+                    <div className="text-xs text-gray-500 capitalize">
+                      {role}
+                    </div>
+                  )}
+                </div>
                 <button
                   onClick={() => {
                     handleLogout();
