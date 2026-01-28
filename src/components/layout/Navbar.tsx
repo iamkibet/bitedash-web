@@ -252,95 +252,108 @@ export const Navbar = ({ onMenuClick, showMenuButton = false }: NavbarProps = {}
 
         {/* Mobile Navigation - Only show if not in AppLayout */}
         {!showMenuButton && mobileMenuOpen && (
-          <div className="md:hidden py-4 space-y-1 border-t border-gray-100">
+          <div className="md:hidden py-4 border-t border-gray-100">
             {/* Public Links */}
-            {publicLinks.map((link) => {
-              const Icon = link.icon;
-              const isActive = location.pathname === link.path || 
-                (link.path !== '/' && location.pathname.startsWith(link.path));
-              
-              return (
-                <Link
-                  key={link.path}
-                  to={link.path}
-                  className={cn(
-                    'flex items-center gap-2 px-4 py-2.5 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors',
-                    isActive && 'bg-primary-50 text-primary-600 font-medium'
-                  )}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  {Icon && <Icon className="h-4 w-4" />}
-                  <span>{link.label}</span>
-                </Link>
-              );
-            })}
+            <div className="mb-4">
+              <div className="px-6 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                Navigation
+              </div>
+              <div className="space-y-0.5">
+                {publicLinks.map((link) => {
+                  const Icon = link.icon;
+                  const isActive = location.pathname === link.path || 
+                    (link.path !== '/' && location.pathname.startsWith(link.path));
+                  
+                  return (
+                    <Link
+                      key={link.path}
+                      to={link.path}
+                      className={cn(
+                        'flex items-center gap-2 px-6 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors',
+                        isActive && 'bg-primary-50 text-primary-600 font-medium'
+                      )}
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      {Icon && <Icon className="h-4 w-4" />}
+                      <span>{link.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
 
             {/* Role-specific links */}
             {isAuthenticated && getRoleLinks().length > 0 && (
-              <>
-                <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Account
+              <div className="mb-4">
+                <div className="px-6 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  Dashboard
                 </div>
-                {getRoleLinks().map((link) => (
-                  <Link
-                    key={link.path}
-                    to={link.path}
-                    className={cn(
-                      'block px-4 py-2.5 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors',
-                      (location.pathname === link.path || location.pathname.startsWith(link.path + '/')) &&
-                        'bg-primary-50 text-primary-600 font-medium'
-                    )}
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    {link.label}
-                  </Link>
-                ))}
-              </>
+                <div className="space-y-0.5">
+                  {getRoleLinks().map((link) => (
+                    <Link
+                      key={link.path}
+                      to={link.path}
+                      className={cn(
+                        'block px-6 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors',
+                        (location.pathname === link.path || location.pathname.startsWith(link.path + '/')) &&
+                          'bg-primary-50 text-primary-600 font-medium'
+                      )}
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      {link.label}
+                    </Link>
+                  ))}
+                </div>
+              </div>
             )}
 
             {isAuthenticated ? (
-              <>
-                <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              <div className="mb-4">
+                <div className="px-6 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wider">
                   Profile
                 </div>
-                <div className="px-4 pb-2 text-sm text-gray-700">
-                  <div className="font-semibold truncate">{user?.name || 'Account'}</div>
-                  {role && (
-                    <div className="text-xs text-gray-500 capitalize">
-                      {role}
-                    </div>
-                  )}
+                <div className="space-y-0.5">
+                  <div className="px-6 py-2.5 text-sm text-gray-700">
+                    <div className="font-semibold truncate">{user?.name || 'Account'}</div>
+                    {role && (
+                      <div className="text-xs text-gray-500 capitalize mt-0.5">
+                        {role}
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => {
+                      handleLogout();
+                      setMobileMenuOpen(false);
+                    }}
+                    className="w-full text-left px-6 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    Logout
+                  </button>
                 </div>
-                <button
-                  onClick={() => {
-                    handleLogout();
-                    setMobileMenuOpen(false);
-                  }}
-                  className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100 rounded"
-                >
-                  Logout
-                </button>
-              </>
+              </div>
             ) : (
-              <>
-                <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              <div className="mb-4">
+                <div className="px-6 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wider">
                   Account
                 </div>
-                <Link
-                  to="/login"
-                  className="block px-4 py-2 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Login
-                </Link>
-                <Link
-                  to="/register"
-                  className="block px-4 py-2 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Register
-                </Link>
-              </>
+                <div className="space-y-0.5">
+                  <Link
+                    to="/login"
+                    className="block px-6 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Login
+                  </Link>
+                  <Link
+                    to="/register"
+                    className="block px-6 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Register
+                  </Link>
+                </div>
+              </div>
             )}
           </div>
         )}
