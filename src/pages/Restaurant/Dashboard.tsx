@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { restaurantsApi } from '../../api/restaurants';
 import { useOrderStore } from '../../store/orderStore';
 import { useAuthStore } from '../../store/authStore';
+import { menuItemsApi } from '../../api/menuItems';
+import { ratingsApi } from '../../api/ratings';
 import type { Restaurant } from '../../types/restaurant.types';
 import { Card } from '../../components/common/Card';
 import { Badge } from '../../components/common/Badge';
@@ -20,6 +22,7 @@ import {
   TrendingUp,
   Eye,
   ArrowRight,
+  Star,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -32,6 +35,7 @@ export const RestaurantDashboard = () => {
   const [statistics, setStatistics] = useState<{ total_revenue?: number } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isToggling, setIsToggling] = useState(false);
+  const [ratingsSummary, setRatingsSummary] = useState<{ average: number; total: number; itemsWithRatings: number } | null>(null);
 
   useEffect(() => {
     fetchStoreAndOrders();
@@ -46,6 +50,7 @@ export const RestaurantDashboard = () => {
         setRestaurant(store);
         setStatistics(stats ?? null);
         await getRestaurantOrdersAll(store.id);
+        await fetchRatingsSummary(store.id);
       } else {
         // Fallback: Try to find store by user_id if my-store endpoint doesn't work
         console.warn('No store found via my-store endpoint, trying fallback...');
@@ -107,6 +112,44 @@ export const RestaurantDashboard = () => {
       setStatistics(null);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchRatingsSummary = async (restaurantId: number) => {
+    try {
+      const menuItems = await menuItemsApi.getByRestaurant(restaurantId);
+      let totalRatings = 0;
+      let totalRatingSum = 0;
+      let itemsWithRatings = 0;
+
+      for (const item of menuItems) {
+        try {
+          const response = await ratingsApi.getByMenuItem(item.id);
+          const itemRatings = response.data || [];
+          
+          if (itemRatings.length > 0) {
+            itemsWithRatings++;
+            const itemAverage = response.stats?.average_rating || 
+              (itemRatings.reduce((sum, r) => sum + r.rating, 0) / itemRatings.length);
+            const itemCount = response.stats?.total_ratings || itemRatings.length;
+            
+            totalRatings += itemCount;
+            totalRatingSum += itemAverage * itemCount;
+          }
+        } catch (error) {
+          // Ignore errors for individual items
+        }
+      }
+
+      if (totalRatings > 0) {
+        setRatingsSummary({
+          average: totalRatingSum / totalRatings,
+          total: totalRatings,
+          itemsWithRatings,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch ratings summary:', error);
     }
   };
 
@@ -307,6 +350,42 @@ export const RestaurantDashboard = () => {
           </div>
         </Card>
       </div>
+
+      {/* Ratings Summary */}
+      {ratingsSummary && ratingsSummary.total > 0 && (
+        <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-yellow-700 mb-1">Average Rating</p>
+              <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-center gap-0.5">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Star
+                      key={star}
+                      className={`h-4 w-4 ${
+                        star <= Math.floor(ratingsSummary.average)
+                          ? 'text-yellow-400 fill-current'
+                          : star === Math.ceil(ratingsSummary.average) && ratingsSummary.average % 1 >= 0.5
+                          ? 'text-yellow-400 fill-current opacity-50'
+                          : 'text-gray-300'
+                      }`}
+                    />
+                  ))}
+                </div>
+                <p className="text-2xl font-bold text-yellow-900">
+                  {ratingsSummary.average.toFixed(1)}
+                </p>
+              </div>
+              <p className="text-xs text-yellow-600 mt-1">
+                {ratingsSummary.total} {ratingsSummary.total === 1 ? 'rating' : 'ratings'} across {ratingsSummary.itemsWithRatings} {ratingsSummary.itemsWithRatings === 1 ? 'item' : 'items'}
+              </p>
+            </div>
+            <div className="p-3 bg-yellow-200 rounded-full">
+              <Star className="h-6 w-6 text-yellow-700 fill-current" />
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* Recent Orders Section */}
       <Card>

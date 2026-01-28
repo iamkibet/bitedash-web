@@ -11,7 +11,7 @@ interface AppLayoutProps {
 export const AppLayout = ({ children }: AppLayoutProps) => {
   const { isAuthenticated, role } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
 
   // Close mobile sidebar on resize to desktop
   useEffect(() => {
@@ -37,13 +37,14 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
           isCollapsed={sidebarCollapsed}
-          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
         />
       )}
       <div className="flex-1 flex flex-col min-w-0">
         <Navbar
           onMenuClick={() => setSidebarOpen(!sidebarOpen)}
           showMenuButton={showSidebar}
+          sidebarCollapsed={sidebarCollapsed}
+          onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
         />
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto">{children}</div>

@@ -12,8 +12,9 @@ import { formatCurrency, resolveImageUrl } from '../../utils/formatters';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { menuItemSchema } from '../../utils/validators';
-import { Plus, Edit, Trash2, Power, Store, Upload, X } from 'lucide-react';
+import { Plus, Edit, Trash2, Power, Store, Upload, X, Star, MessageSquare, ChevronDown, ChevronUp } from 'lucide-react';
 import { restaurantsApi } from '../../api/restaurants';
+import { ratingsApi, type Rating } from '../../api/ratings';
 import { toast } from 'sonner';
 import {
   MENU_ITEM_IMAGE_ACCEPT,
@@ -39,6 +40,8 @@ export const MenuManagement = () => {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [ratings, setRatings] = useState<Record<number, { ratings: Rating[]; average: number; count: number }>>({});
+  const [expandedRatings, setExpandedRatings] = useState<Record<number, boolean>>({});
 
   const {
     register,
@@ -70,6 +73,8 @@ export const MenuManagement = () => {
       if (myStore) {
         const items = await menuItemsApi.getByRestaurant(myStore.id);
         setMenuItems(items);
+        // Fetch ratings for all menu items
+        await fetchRatingsForItems(items);
       }
     } catch (error) {
       console.error('Failed to fetch store or menu:', error);
@@ -79,15 +84,65 @@ export const MenuManagement = () => {
     }
   };
 
+  const fetchRatingsForItems = async (items: MenuItem[]) => {
+    try {
+      const ratingsMap: Record<number, { ratings: Rating[]; average: number; count: number }> = {};
+
+      await Promise.all(
+        items.map(async (item) => {
+          try {
+            const response = await ratingsApi.getByMenuItem(item.id);
+            const itemRatings = response.data || [];
+            
+            // Calculate average if not provided
+            let average = 0;
+            let count = itemRatings.length;
+            
+            if (response.stats) {
+              average = response.stats.average_rating;
+              count = response.stats.total_ratings;
+            } else if (itemRatings.length > 0) {
+              const sum = itemRatings.reduce((acc, r) => acc + r.rating, 0);
+              average = sum / itemRatings.length;
+            }
+            
+            if (count > 0) {
+              ratingsMap[item.id] = {
+                ratings: itemRatings,
+                average,
+                count,
+              };
+            }
+          } catch (error) {
+            // Ignore errors for individual items
+            console.error(`Failed to fetch ratings for item ${item.id}:`, error);
+          }
+        }),
+      );
+
+      setRatings(ratingsMap);
+    } catch (error) {
+      console.error('Failed to fetch ratings:', error);
+    }
+  };
+
   const fetchMenuItems = async () => {
     if (!store) return;
     try {
       const items = await menuItemsApi.getByRestaurant(store.id);
       setMenuItems(items);
+      await fetchRatingsForItems(items);
     } catch (error) {
       console.error('Failed to fetch menu items:', error);
       toast.error('Failed to load menu items.');
     }
+  };
+
+  const toggleRatingsExpanded = (itemId: number) => {
+    setExpandedRatings((prev) => ({
+      ...prev,
+      [itemId]: !prev[itemId],
+    }));
   };
 
   const onSubmit = async (data: MenuItemFormData) => {
@@ -255,9 +310,85 @@ export const MenuManagement = () => {
                 </Badge>
               </div>
               <p className="text-gray-600 text-sm mb-3">{item.description}</p>
-              <p className="text-2xl font-bold text-primary-600 mb-4">
+              <p className="text-2xl font-bold text-primary-600 mb-3">
                 {formatCurrency(item.price)}
               </p>
+              
+              {/* Ratings Section */}
+              {ratings[item.id] && ratings[item.id].count > 0 && (
+                <div className="mb-4 pt-3 border-t border-gray-200">
+                  <button
+                    onClick={() => toggleRatingsExpanded(item.id)}
+                    className="w-full flex items-center justify-between text-left hover:bg-gray-50 -mx-2 px-2 py-1.5 rounded transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Star
+                            key={star}
+                            className={`h-3.5 w-3.5 ${
+                              star <= Math.floor(ratings[item.id].average)
+                                ? 'text-yellow-400 fill-current'
+                                : star === Math.ceil(ratings[item.id].average) && ratings[item.id].average % 1 >= 0.5
+                                ? 'text-yellow-400 fill-current opacity-50'
+                                : 'text-gray-300'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      <span className="text-sm font-medium text-gray-700">
+                        {ratings[item.id].average.toFixed(1)}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        ({ratings[item.id].count} {ratings[item.id].count === 1 ? 'rating' : 'ratings'})
+                      </span>
+                    </div>
+                    {expandedRatings[item.id] ? (
+                      <ChevronUp className="h-4 w-4 text-gray-400" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 text-gray-400" />
+                    )}
+                  </button>
+                  
+                  {expandedRatings[item.id] && (
+                    <div className="mt-3 space-y-3 max-h-64 overflow-y-auto">
+                      {ratings[item.id].ratings.map((rating) => (
+                        <div key={rating.id} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-0.5">
+                                {[1, 2, 3, 4, 5].map((star) => (
+                                  <Star
+                                    key={star}
+                                    className={`h-3 w-3 ${
+                                      star <= rating.rating
+                                        ? 'text-yellow-400 fill-current'
+                                        : 'text-gray-300'
+                                    }`}
+                                  />
+                                ))}
+                              </div>
+                              <span className="text-xs text-gray-500">
+                                {rating.user?.name || 'Anonymous'}
+                              </span>
+                            </div>
+                            <span className="text-xs text-gray-400">
+                              {new Date(rating.created_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                          {rating.comment && (
+                            <div className="mt-2 flex items-start gap-2">
+                              <MessageSquare className="h-3.5 w-3.5 text-gray-400 mt-0.5 shrink-0" />
+                              <p className="text-sm text-gray-700 flex-1">{rating.comment}</p>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              
               <div className="flex gap-2">
                 <Button
                   variant="outline"

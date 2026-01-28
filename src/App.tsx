@@ -23,6 +23,8 @@ import { Cart } from './pages/Customer/Cart';
 import { Orders } from './pages/Customer/Orders';
 import { OrderDetails } from './pages/Customer/OrderDetails';
 import { Payment } from './pages/Customer/Payment';
+import { CustomerDashboard } from './pages/Customer/Dashboard';
+import { Favorites } from './pages/Customer/Favorites';
 
 // Restaurant Pages
 import { RestaurantDashboard } from './pages/Restaurant/Dashboard';
@@ -46,13 +48,12 @@ function App() {
   }, [checkAuth]);
 
   return (
-    <BrowserRouter future={{ v7_relativeSplatPath: true }}>
+    <BrowserRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
       <Toaster position="top-right" richColors />
       <Routes>
         {/* Public Layout Routes - Homepage, public browsing, and auth pages */}
         <Route element={<PublicLayout><Outlet /></PublicLayout>}>
           <Route path="/" element={<Home />} />
-          <Route path="/stores" element={<Restaurants />} />
           <Route path="/stores/:id/menu" element={<Menu />} />
           <Route path="/about" element={<About />} />
           <Route path="/services" element={<Services />} />
@@ -66,9 +67,12 @@ function App() {
         <Route element={<AppLayout><Outlet /></AppLayout>}>
           {/* Customer Routes */}
           <Route element={<ProtectedRoute requiredRole="customer" />}>
+            <Route path="/dashboard" element={<CustomerDashboard />} />
+            <Route path="/stores" element={<Restaurants />} />
             <Route path="/orders" element={<Orders />} />
             <Route path="/orders/:id" element={<OrderDetails />} />
             <Route path="/orders/:id/payment" element={<Payment />} />
+            <Route path="/favorites" element={<Favorites />} />
           </Route>
 
           {/* Store (restaurant) owner Routes */}

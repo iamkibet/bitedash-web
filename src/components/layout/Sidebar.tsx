@@ -13,8 +13,7 @@ import {
   FileText,
   Menu,
   X,
-  ChevronLeft,
-  ChevronRight,
+  Heart,
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 
@@ -35,12 +34,14 @@ const getSidebarLinks = (role: string | null): SidebarLink[] => {
       ];
     case 'customer':
       return [
+        { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { path: '/stores', label: 'Restaurants', icon: Store },
         { path: '/orders', label: 'My Orders', icon: Package },
+        { path: '/favorites', label: 'Favorites', icon: Heart },
       ];
     case 'rider':
       return [
-        { path: '/rider/orders', label: 'Available Orders', icon: ShoppingBag },
+        { path: '/rider/orders', label: 'Dashboard', icon: LayoutDashboard },
         { path: '/rider/deliveries', label: 'My Deliveries', icon: Truck },
       ];
     case 'admin':
@@ -59,10 +60,9 @@ interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   isCollapsed: boolean;
-  onToggleCollapse: () => void;
 }
 
-export const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }: SidebarProps) => {
+export const Sidebar = ({ isOpen, onClose, isCollapsed }: SidebarProps) => {
   const { role } = useAuthStore();
   const location = useLocation();
   const links = getSidebarLinks(role);
@@ -84,7 +84,7 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }: Side
           'fixed lg:sticky top-0 left-0 h-screen bg-white border-r border-gray-200 z-50 transition-all duration-300 ease-in-out',
           'flex flex-col',
           isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
-          isCollapsed ? 'w-16' : 'w-64'
+          isCollapsed ? 'w-16' : 'w-56'
         )}
       >
         {/* Header */}
@@ -101,18 +101,6 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }: Side
             </div>
           )}
           <div className="flex items-center gap-2">
-            {/* Collapse Toggle - Desktop */}
-            <button
-              onClick={onToggleCollapse}
-              className="hidden lg:flex items-center justify-center w-8 h-8 rounded-md hover:bg-gray-100 transition-colors"
-              aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            >
-              {isCollapsed ? (
-                <ChevronRight className="h-4 w-4 text-gray-600" />
-              ) : (
-                <ChevronLeft className="h-4 w-4 text-gray-600" />
-              )}
-            </button>
             {/* Close Button - Mobile */}
             <button
               onClick={onClose}
@@ -129,7 +117,10 @@ export const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }: Side
           <ul className="space-y-1 px-2">
             {links.map((link) => {
               const Icon = link.icon;
-              const isActive = location.pathname === link.path || location.pathname.startsWith(link.path + '/');
+              // Check if current path matches exactly or is a sub-route
+              const isActive = 
+                location.pathname === link.path || 
+                (link.path !== '/' && location.pathname.startsWith(link.path + '/'));
               
               return (
                 <li key={link.path}>

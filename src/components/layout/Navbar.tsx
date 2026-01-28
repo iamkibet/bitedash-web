@@ -1,7 +1,8 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useCartStore } from '../../store/cartStore';
-import { ShoppingCart, LogOut, User, Menu, Store, ChevronDown } from 'lucide-react';
+import { useFavoritesStore } from '../../store/favoritesStore';
+import { ShoppingCart, LogOut, User, Menu, Store, ChevronDown, Heart, PanelLeftOpen, PanelLeftClose } from 'lucide-react';
 import { Button } from '../common/Button';
 import { useState, useRef, useEffect } from 'react';
 import { cn } from '../../utils/cn';
@@ -9,16 +10,26 @@ import { cn } from '../../utils/cn';
 interface NavbarProps {
   onMenuClick?: () => void;
   showMenuButton?: boolean;
+  sidebarCollapsed?: boolean;
+  onToggleSidebar?: () => void;
 }
 
-export const Navbar = ({ onMenuClick, showMenuButton = false }: NavbarProps = {}) => {
+export const Navbar = ({ onMenuClick, showMenuButton = false, sidebarCollapsed = true, onToggleSidebar }: NavbarProps = {}) => {
   const { user, isAuthenticated, logout, role } = useAuthStore();
   const { getItemCount } = useCartStore();
+  const { getCount: getFavoritesCount, fetchFavorites } = useFavoritesStore();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
+
+  // Fetch favorites when authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchFavorites();
+    }
+  }, [isAuthenticated, fetchFavorites]);
 
   // Close profile menu when clicking outside
   useEffect(() => {
@@ -52,6 +63,7 @@ export const Navbar = ({ onMenuClick, showMenuButton = false }: NavbarProps = {}
   };
 
   const cartItemCount = getItemCount();
+  const favoritesCount = isAuthenticated ? getFavoritesCount() : 0;
 
   const getRoleLinks = () => {
     if (!isAuthenticated) return [];
@@ -83,19 +95,38 @@ export const Navbar = ({ onMenuClick, showMenuButton = false }: NavbarProps = {}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center gap-4">
-            {/* Hamburger Menu Button - Only show in AppLayout */}
+            {/* Hamburger Menu Button - Only show in AppLayout and on mobile */}
             {showMenuButton && (
-              <button
-                onClick={onMenuClick}
-                className="text-gray-700 hover:text-primary-600 transition-colors p-2 -ml-2"
-                aria-label="Toggle sidebar"
-              >
-                <Menu className="h-6 w-6" />
-              </button>
+              <>
+                <button
+                  onClick={onMenuClick}
+                  className="lg:hidden text-gray-700 hover:text-primary-600 transition-colors p-2"
+                  aria-label="Toggle sidebar"
+                >
+                  <Menu className="h-6 w-6" />
+                </button>
+                {/* Sidebar Toggle - Desktop only */}
+                {onToggleSidebar && (
+                  <button
+                    onClick={onToggleSidebar}
+                    className="hidden lg:flex text-gray-700 hover:text-primary-600 transition-colors p-2"
+                    aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                  >
+                    {sidebarCollapsed ? (
+                      <PanelLeftOpen className="h-5 w-5" />
+                    ) : (
+                      <PanelLeftClose className="h-5 w-5" />
+                    )}
+                  </button>
+                )}
+              </>
             )}
-            <Link to="/" className="text-2xl font-bold text-primary-600 hover:text-primary-700 transition-colors">
-              BiteDash
-            </Link>
+            {/* Logo - Only show when NOT in AppLayout (when sidebar is not shown) */}
+            {!showMenuButton && (
+              <Link to="/" className="text-2xl font-bold text-primary-600 hover:text-primary-700 transition-colors">
+                BiteDash
+              </Link>
+            )}
           </div>
 
           {/* Desktop Navigation */}
@@ -152,6 +183,21 @@ export const Navbar = ({ onMenuClick, showMenuButton = false }: NavbarProps = {}
 
           {/* Desktop Actions - Always show */}
           <div className="hidden md:flex items-center gap-6">
+            {/* Favorites Icon - Show for authenticated users */}
+            {isAuthenticated && (
+              <Link
+                to="/favorites"
+                className="relative text-gray-700 hover:text-primary-600 transition-colors"
+                aria-label={`Favorites${favoritesCount > 0 ? ` with ${favoritesCount} items` : ''}`}
+              >
+                <Heart className="h-6 w-6" />
+                {favoritesCount > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
+                    {favoritesCount}
+                  </span>
+                )}
+              </Link>
+            )}
             {/* Cart Icon - Show for everyone */}
             <Link
               to="/cart"
@@ -223,6 +269,21 @@ export const Navbar = ({ onMenuClick, showMenuButton = false }: NavbarProps = {}
 
           {/* Mobile Actions - Cart and Menu Button */}
           <div className="md:hidden flex items-center gap-3">
+            {/* Favorites Icon - Show for authenticated users */}
+            {isAuthenticated && (
+              <Link
+                to="/favorites"
+                className="relative text-gray-700 hover:text-primary-600 transition-colors"
+                aria-label={`Favorites${favoritesCount > 0 ? ` with ${favoritesCount} items` : ''}`}
+              >
+                <Heart className="h-6 w-6" />
+                {favoritesCount > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
+                    {favoritesCount}
+                  </span>
+                )}
+              </Link>
+            )}
             {/* Cart Icon - Always visible on mobile */}
             <Link
               to="/cart"

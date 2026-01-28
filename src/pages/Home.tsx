@@ -4,15 +4,11 @@ import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { restaurantsApi } from '../api/restaurants';
 import { menuItemsApi } from '../api/menuItems';
-import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
-import { Badge } from '../components/common/Badge';
 import { Spinner } from '../components/common/Spinner';
-import { Input } from '../components/common/Input';
-import { MenuItemImage } from '../components/common/MenuItemImage';
 import { MealWheel } from '../components/common/MealWheel';
-import { UtensilsCrossed, ShoppingBag, Bike, Shield, Plus, Minus, Search, ShoppingCart, MapPin, ChevronRight, ArrowRight, ChevronLeft } from 'lucide-react';
-import { formatCurrency } from '../utils/formatters';
+import { Dishes } from '../components/common/Dishes';
+import { UtensilsCrossed, ShoppingBag, Bike, Shield, MapPin, ChevronRight, ArrowRight, ChevronLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Restaurant } from '../types/restaurant.types';
 import type { MenuItem } from '../types/order.types';
@@ -27,7 +23,6 @@ export const Home = () => {
   const [allMenuItems, setAllMenuItems] = useState<MenuItemWithRestaurant[]>([]);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
   const [quantities, setQuantities] = useState<Record<number, number>>({});
   const [selectedRestaurantId, setSelectedRestaurantId] = useState<number | null>(null);
   const autoAdvanceIntervalRef = useRef<number | null>(null);
@@ -93,16 +88,6 @@ export const Home = () => {
     }
   };
 
-
-  // Filter menu items based on search query
-  const filteredMenuItems = allMenuItems.filter((item) => {
-    const query = searchQuery.toLowerCase();
-    return (
-      item.name.toLowerCase().includes(query) ||
-      item.description.toLowerCase().includes(query) ||
-      item.restaurant?.name.toLowerCase().includes(query)
-    );
-  });
 
   const selectedRestaurant = restaurants.find((r) => r.id === selectedRestaurantId);
   const selectedRestaurantMenuItems = selectedRestaurantId
@@ -421,116 +406,17 @@ export const Home = () => {
         </div>
       </div>
 
-      {/* Search Bar */}
-      <div className="mb-8">
-        <div className="relative max-w-2xl mx-auto">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-          <Input
-            type="text"
-            placeholder="Search dishes, restaurants..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-      </div>
+      <Dishes
+        allMenuItems={allMenuItems}
+        restaurants={restaurants}
+        isLoading={isLoading}
+        quantities={quantities}
+        onQuantityChange={handleQuantityChange}
+        onAddToCart={handleAddToCart}
+      />
 
-      {/* All Dishes Section */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-3xl font-bold text-gray-900">
-            {searchQuery ? `Search Results (${filteredMenuItems.length})` : 'All Dishes'}
-          </h2>
-          {isAuthenticated && (
-            <Link to="/cart">
-              <Button variant="outline">
-                <ShoppingCart className="h-4 w-4 mr-2" />
-                View Cart
-              </Button>
-            </Link>
-          )}
-        </div>
-
-        {isLoading ? (
-          <div className="flex items-center justify-center min-h-[400px]">
-            <Spinner size="lg" />
-          </div>
-        ) : filteredMenuItems.length === 0 ? (
-          <Card>
-            <div className="text-center py-12">
-              <UtensilsCrossed className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-              <p className="text-xl text-gray-600 mb-2">
-                {searchQuery ? 'No dishes found' : 'No dishes available at the moment'}
-              </p>
-              <p className="text-gray-500">
-                {searchQuery ? 'Try a different search term' : 'Check back later for new dishes'}
-              </p>
-            </div>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredMenuItems.map((item) => (
-              <div key={item.id} id={`dish-${item.id}`}>
-                <Card className="hover:shadow-lg transition-shadow">
-                <div className="mb-4">
-                  <MenuItemImage src={item.image_url} alt={item.name} />
-                </div>
-                <div className="mb-2">
-                  <Link
-                    to={`/stores/${item.restaurant_id}/menu`}
-                    className="text-sm text-primary-600 hover:text-primary-700 font-medium"
-                  >
-                    {item.restaurant?.name || 'Restaurant'}
-                  </Link>
-                </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">{item.name}</h3>
-                <p className="text-gray-600 text-sm mb-3 line-clamp-2">{item.description}</p>
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-2xl font-bold text-primary-600">
-                    {formatCurrency(item.price)}
-                  </span>
-                  {!item.is_available && <Badge variant="error">Out of Stock</Badge>}
-                </div>
-
-                {item.is_available && (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2 border rounded-lg">
-                      <button
-                        onClick={() => handleQuantityChange(item.id, -1)}
-                        className="p-2 hover:bg-gray-100 transition-colors"
-                        disabled={quantities[item.id] <= 1}
-                      >
-                        <Minus className="h-4 w-4" />
-                      </button>
-                      <span className="px-3 py-1 min-w-[3rem] text-center font-medium">
-                        {quantities[item.id] || 1}
-                      </span>
-                      <button
-                        onClick={() => handleQuantityChange(item.id, 1)}
-                        className="p-2 hover:bg-gray-100 transition-colors"
-                        disabled={quantities[item.id] >= 50}
-                      >
-                        <Plus className="h-4 w-4" />
-                      </button>
-                    </div>
-                    <Button
-                      onClick={() => handleAddToCart(item)}
-                      className="w-full"
-                    >
-                      <ShoppingCart className="h-4 w-4 mr-2" />
-                      Add to Cart
-                    </Button>
-                  </div>
-                )}
-                </Card>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Features Section - Only show when not authenticated or when no search */}
-      {!isAuthenticated && !searchQuery && (
+      {/* Features Section - Only show when not authenticated */}
+      {!isAuthenticated && (
         <div className="mt-16">
           <h2 className="text-3xl font-bold text-gray-900 text-center mb-8">Why Choose BiteDash?</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

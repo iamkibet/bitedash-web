@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useOrderStore } from '../../store/orderStore';
 import { Card } from '../../components/common/Card';
@@ -8,15 +8,56 @@ import { formatCurrency, formatDate } from '../../utils/formatters';
 import { ORDER_STATUSES } from '../../utils/constants';
 import { isUnpaid, canCancelOrder } from '../../utils/orderLifecycle';
 import { Button } from '../../components/common/Button';
-import { Eye, CreditCard } from 'lucide-react';
+import { Eye, CreditCard, Star } from 'lucide-react';
+import { ratingsApi, type Rating } from '../../api/ratings';
+import { useAuthStore } from '../../store/authStore';
 
 export const Orders = () => {
   const navigate = useNavigate();
   const { orders, fetchOrders, isLoading, cancelOrder } = useOrderStore();
+  const { user } = useAuthStore();
+  const [ratingsByOrder, setRatingsByOrder] = useState<Record<number, Rating[]>>({});
 
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
+
+  // Fetch ratings for all orders
+  useEffect(() => {
+    if (!user?.id || orders.length === 0) return;
+
+    const fetchAllRatings = async () => {
+      const ratingsMap: Record<number, Rating[]> = {};
+
+      for (const order of orders) {
+        if (!order.items) continue;
+        
+        const orderRatings: Rating[] = [];
+        for (const item of order.items) {
+          const menuItemId = item.menu_item?.id || item.menu_item_id;
+          if (!menuItemId) continue;
+
+          try {
+            const response = await ratingsApi.getByMenuItem(menuItemId);
+            const userRating = response.data?.find((r) => r.user_id === user.id);
+            if (userRating) {
+              orderRatings.push(userRating);
+            }
+          } catch (error) {
+            // Ignore errors
+          }
+        }
+        
+        if (orderRatings.length > 0) {
+          ratingsMap[order.id] = orderRatings;
+        }
+      }
+
+      setRatingsByOrder(ratingsMap);
+    };
+
+    void fetchAllRatings();
+  }, [orders, user?.id]);
 
   const handleCancel = async (orderId: number) => {
     const order = orders.find((o) => o.id === orderId);
@@ -91,6 +132,14 @@ export const Orders = () => {
                     <p className="text-sm text-gray-500 mb-2">
                       {formatDate(order.created_at)}
                     </p>
+                    {ratingsByOrder[order.id] && ratingsByOrder[order.id].length > 0 && (
+                      <div className="flex items-center gap-1 mb-2">
+                        <Star className="h-3.5 w-3.5 text-yellow-400 fill-current" />
+                        <span className="text-xs text-gray-600">
+                          {ratingsByOrder[order.id].length} item{ratingsByOrder[order.id].length !== 1 ? 's' : ''} rated
+                        </span>
+                      </div>
+                    )}
                     <p className="text-lg font-semibold text-gray-900">
                       Total: {formatCurrency(order.total ?? 0)}
                     </p>

@@ -76,3 +76,26 @@ export interface CartItem {
   menu_item: MenuItem;
   quantity: number;
 }
+
+export interface Rating {
+  id: number;
+  user_id: number;
+  menu_item_id: number;
+  rating: number; // 1-5
+  comment?: string;
+  created_at: string;
+  updated_at: string;
+  user?: {
+    id: number;
+    name: string;
+  };
+}
+
+export interface Favorite {
+  id: number;
+  user_id: number;
+  menu_item_id: number;
+  menu_item: MenuItem;
+  created_at: string;
+  updated_at: string;
+}
