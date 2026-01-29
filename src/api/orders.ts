@@ -4,7 +4,28 @@ import type {
   CreateOrderData,
   OrderListResponse,
   OrderStatus,
+  OrderItem,
+  MenuItem,
 } from '../types/order.types';
+
+function buildMinimalMenuItem(
+  order: { restaurant_id: number },
+  item: { menu_item_id?: number; menu_item?: MenuItem; name?: string; price?: number; unit_price?: number }
+): MenuItem {
+  const id = item.menu_item?.id ?? item.menu_item_id ?? 0;
+  const price = Number(item.price ?? item.unit_price ?? item.menu_item?.price ?? 0);
+  return {
+    id,
+    restaurant_id: order.restaurant_id,
+    name: item.menu_item?.name ?? item.name ?? 'Item',
+    description: item.menu_item?.description ?? '',
+    price,
+    image_url: item.menu_item?.image_url,
+    is_available: item.menu_item?.is_available ?? true,
+    created_at: item.menu_item?.created_at ?? '',
+    updated_at: item.menu_item?.updated_at ?? '',
+  };
+}
 
 function normalizeOrderList(list: any[]): Order[] {
   if (!Array.isArray(list)) return [];
@@ -17,9 +38,34 @@ function normalizeOrderList(list: any[]): Order[] {
       : o.status === 'pending'
         ? 'unpaid'
         : ('paid' as const);
-    const items = Array.isArray(o.items) ? o.items : Array.isArray(o.order_items) ? o.order_items : [];
+    const rawItems = Array.isArray(o.items) ? o.items : Array.isArray(o.order_items) ? o.order_items : [];
+    const restaurantId = Number(o.restaurant_id ?? o.restaurant?.id ?? 0);
+    const orderContext = { restaurant_id: restaurantId };
+    const items: OrderItem[] = rawItems.map((i: any) => {
+      const menuItem = i.menu_item ?? i.menuItem ?? buildMinimalMenuItem(orderContext, i);
+      const menuItemId = menuItem.id ?? i.menu_item_id;
+      if (menuItemId != null) (menuItem as any).id = menuItemId;
+      const price = Number(i.unit_price ?? i.price ?? menuItem.price ?? 0);
+      const qty = Number(i.quantity ?? 0);
+      return {
+        id: i.id,
+        order_id: i.order_id ?? o.id,
+        menu_item_id: menuItemId ?? 0,
+        quantity: qty,
+        price,
+        menu_item: menuItem,
+      } as OrderItem;
+    });
     const user = o.user ?? o.customer;
-    return { ...o, items, user, total: !isNaN(total) && total >= 0 ? total : 0, payment_status } as Order;
+    const status = (o.status ?? '').toString().toLowerCase();
+    return {
+      ...o,
+      status: status as OrderStatus,
+      items,
+      user,
+      total: !isNaN(total) && total >= 0 ? total : 0,
+      payment_status,
+    } as Order;
   });
 }
 
@@ -29,7 +75,11 @@ export const ordersApi = {
     page?: number;
   }): Promise<OrderListResponse> => {
     const response = await apiClient.get<OrderListResponse>('/orders', { params });
-    return response.data;
+    const body = response.data as OrderListResponse | Order[];
+    const list = Array.isArray(body) ? body : (body as OrderListResponse).data ?? [];
+    const data = normalizeOrderList(list);
+    const meta = Array.isArray(body) ? undefined : (body as OrderListResponse).meta;
+    return { data, meta };
   },
 
   getById: async (id: number): Promise<Order> => {

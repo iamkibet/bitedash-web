@@ -117,3 +117,27 @@
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+/* Slim, styled scrollbar for table horizontal scroll (mobile-friendly) */
+.table-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db #f3f4f6;
+}
+
+.table-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+
+.table-scroll::-webkit-scrollbar-track {
+  background: #f3f4f6;
+  border-radius: 3px;
+}
+
+.table-scroll::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+
+.table-scroll::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}

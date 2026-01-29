@@ -237,7 +237,7 @@ export const RestaurantOrders = () => {
         </Card>
       ) : (
         <Card padding="none" className="overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto table-scroll">
             <table className="w-full min-w-[900px] text-left">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50/80">

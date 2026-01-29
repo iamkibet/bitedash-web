@@ -546,7 +546,7 @@ export const RestaurantDashboard = () => {
             <p className="text-sm text-gray-400 mt-1">Orders will appear here when customers place them</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto table-scroll">
             <table className="w-full min-w-[640px]">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50/80">

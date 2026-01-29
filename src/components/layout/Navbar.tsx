@@ -12,9 +12,11 @@ interface NavbarProps {
   showMenuButton?: boolean;
   sidebarCollapsed?: boolean;
   onToggleSidebar?: () => void;
+  /** When true, nav content is constrained to max-w-7xl (e.g. public layout). When false, full width (dashboard). */
+  contentMaxWidth?: boolean;
 }
 
-export const Navbar = ({ onMenuClick, showMenuButton = false, sidebarCollapsed = true, onToggleSidebar }: NavbarProps = {}) => {
+export const Navbar = ({ onMenuClick, showMenuButton = false, sidebarCollapsed = true, onToggleSidebar, contentMaxWidth = false }: NavbarProps = {}) => {
   const { user, isAuthenticated, logout, role } = useAuthStore();
   const { getItemCount } = useCartStore();
   const { getCount: getFavoritesCount, fetchFavorites } = useFavoritesStore();
@@ -93,7 +95,7 @@ export const Navbar = ({ onMenuClick, showMenuButton = false, sidebarCollapsed =
 
   return (
     <nav className="bg-white shadow-md sticky top-0 z-40 border-b border-gray-100">
-      <div className="w-full px-4 sm:px-6 lg:px-8">
+      <div className={cn("w-full px-4 sm:px-6 lg:px-8", contentMaxWidth && "max-w-7xl mx-auto")}>
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center gap-4">
             {/* Hamburger Menu Button - Only show in AppLayout and on mobile */}
