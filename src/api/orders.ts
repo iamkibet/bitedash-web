@@ -178,12 +178,34 @@ export const ordersApi = {
     return ordersApi.getRestaurantOrdersAll(restaurantId);
   },
 
-  // Rider endpoints
+  // Rider endpoints — orders that are paid and not yet assigned to a rider
   getAvailableOrders: async (): Promise<Order[]> => {
-    const response = await apiClient.get<{ data: Order[] } | Order[]>('/orders/available');
-    const data = response.data;
-    const list = Array.isArray(data) ? data : (data as any)?.data ?? [];
-    return Array.isArray(list) ? list : [];
+    let normalized: Order[] = [];
+    try {
+      const response = await apiClient.get<{ data: Order[]; orders?: Order[] } | Order[]>('/orders/available');
+      const data = response.data as Record<string, unknown> | Order[] | undefined;
+      const list = Array.isArray(data)
+        ? data
+        : (Array.isArray((data as any)?.data) ? (data as any).data : (data as any)?.orders) ?? [];
+      normalized = normalizeOrderList(list);
+      if (normalized.length > 0) return normalized;
+    } catch (e: unknown) {
+      const err = e as { response?: { status?: number } };
+      if (err.response?.status !== 404) throw e;
+    }
+    // Fallback: fetch all orders and filter for paid, unassigned, not delivered/cancelled
+    try {
+      const { data: allOrders } = await ordersApi.getAll();
+      return allOrders.filter(
+        (o) =>
+          (o.payment_status === 'paid' || o.status === 'pending' || o.status === 'preparing') &&
+          (o.rider_id == null || o.rider_id === 0) &&
+          o.status !== 'delivered' &&
+          o.status !== 'cancelled'
+      );
+    } catch {
+      return [];
+    }
   },
 
   /** GET /orders/my-rider — orders assigned to current rider. For My Deliveries page. */

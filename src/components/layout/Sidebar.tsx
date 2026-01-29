@@ -41,7 +41,8 @@ const getSidebarLinks = (role: string | null): SidebarLink[] => {
       ];
     case 'rider':
       return [
-        { path: '/rider/orders', label: 'Dashboard', icon: LayoutDashboard },
+        { path: '/rider/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { path: '/rider/orders', label: 'Available Orders', icon: Package },
         { path: '/rider/deliveries', label: 'My Deliveries', icon: Truck },
       ];
     case 'admin':

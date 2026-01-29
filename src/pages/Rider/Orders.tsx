@@ -4,9 +4,9 @@ import { Card } from '../../components/common/Card';
 import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
 import { Spinner } from '../../components/common/Spinner';
-import { formatCurrency, formatDate } from '../../utils/formatters';
+import { formatCurrency, formatDateShort, formatTime } from '../../utils/formatters';
 import { ORDER_STATUSES } from '../../utils/constants';
-import { MapPin, Package, CheckCircle } from 'lucide-react';
+import { Package, CheckCircle } from 'lucide-react';
 
 export const RiderOrders = () => {
   const { orders, getAvailableOrders, acceptOrder, getRiderDeliveries, isLoading } = useOrderStore();
@@ -16,7 +16,7 @@ export const RiderOrders = () => {
     getAvailableOrders();
     const interval = setInterval(getAvailableOrders, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [getAvailableOrders]);
 
   const handleAccept = async (orderId: number) => {
     try {
@@ -31,6 +31,10 @@ export const RiderOrders = () => {
     }
   };
 
+  const sortedOrders = [...orders].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
+
   if (isLoading && orders.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -41,74 +45,122 @@ export const RiderOrders = () => {
 
   return (
     <div>
-      <h1 className="text-3xl font-bold text-gray-900 mb-2">Available Orders</h1>
-      <p className="text-gray-600 mb-6">
-        Unassigned, paid orders. Self-accept to assign yourself — status moves to on the way.
+      <h1 className="text-2xl font-bold text-gray-900 mb-2">Available Orders</h1>
+      <p className="text-gray-600 text-sm mb-6">
+        Orders waiting for a rider. Accept one to start delivering.
       </p>
 
       {orders.length === 0 ? (
-        <Card>
-          <div className="text-center py-12">
-            <Package className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-500">No available orders at the moment</p>
-            <p className="text-sm text-gray-400 mt-1">New orders appear here after customers pay</p>
-          </div>
+        <Card className="text-center py-12">
+          <Package className="h-12 w-12 text-gray-300 mx-auto mb-3" aria-hidden />
+          <p className="text-gray-600 font-medium">No available orders at the moment</p>
+          <p className="text-sm text-gray-500 mt-1">New orders appear here after customers pay</p>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {orders.map((order) => {
-            const statusConfig = ORDER_STATUSES[order.status];
-            const itemCount = (order.items ?? []).length;
-            return (
-              <Card key={order.id} className="flex flex-col">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-xl font-semibold text-gray-900">Order #{order.id}</h3>
-                    <Badge variant={statusConfig.color as any}>
-                      {statusConfig.icon} {statusConfig.label}
-                    </Badge>
-                    <Badge variant="success">
-                      <CheckCircle className="h-3.5 w-3 inline mr-1" />
-                      Paid
-                    </Badge>
-                  </div>
-                  <p className="text-xl font-bold text-primary-600">
-                    {formatCurrency(order.total ?? 0)}
-                  </p>
-                </div>
-
-                <div className="space-y-3 mb-5 flex-1">
-                  <div className="flex items-start gap-2">
-                    <Package className="h-5 w-5 text-gray-400 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{order.restaurant?.name}</p>
-                      <p className="text-sm text-gray-600">{order.restaurant?.location}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <MapPin className="h-5 w-5 text-gray-400 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">Delivery address</p>
-                      <p className="text-sm text-gray-600">{order.delivery_address}</p>
-                    </div>
-                  </div>
-                  <p className="text-sm text-gray-500">
-                    {itemCount} item(s) • {formatDate(order.created_at)}
-                  </p>
-                </div>
-
-                <Button
-                  onClick={() => handleAccept(order.id)}
-                  className="w-full gap-2"
-                  isLoading={acceptingId === order.id}
-                >
-                  <CheckCircle className="h-4 w-4" />
-                  Accept Order
-                </Button>
-              </Card>
-            );
-          })}
-        </div>
+        <Card padding="none" className="overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[800px] text-left">
+              <thead>
+                <tr className="border-b border-gray-200 bg-gray-50/80">
+                  <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                    Order
+                  </th>
+                  <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                    Restaurant
+                  </th>
+                  <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                    Delivery address
+                  </th>
+                  <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                    Customer / Phone
+                  </th>
+                  <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                    Items
+                  </th>
+                  <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap text-right">
+                    Total
+                  </th>
+                  <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                    Date & time
+                  </th>
+                  <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                    Status
+                  </th>
+                  <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap text-right">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {sortedOrders.map((order) => {
+                  const statusConfig = ORDER_STATUSES[order.status];
+                  const itemCount = (order.items ?? []).length;
+                  return (
+                    <tr key={order.id} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="py-3 px-4">
+                        <span className="font-semibold text-gray-900">#{order.id}</span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="text-sm text-gray-700">
+                          {order.restaurant?.name ?? '—'}
+                        </div>
+                        {order.restaurant?.location && (
+                          <div className="text-xs text-gray-500 truncate max-w-[140px]">
+                            {order.restaurant.location}
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 max-w-[200px]">
+                        <span className="text-sm text-gray-700 line-clamp-2" title={order.delivery_address}>
+                          {order.delivery_address}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="text-sm text-gray-700">{order.user?.name ?? '—'}</div>
+                        <a
+                          href={order.user?.phone ? `tel:${order.user.phone}` : undefined}
+                          className="text-xs text-primary-600 hover:text-primary-700 hover:underline"
+                        >
+                          {order.user?.phone ?? '—'}
+                        </a>
+                      </td>
+                      <td className="py-3 px-4 text-sm text-gray-600 whitespace-nowrap">
+                        {itemCount} item{itemCount === 1 ? '' : 's'}
+                      </td>
+                      <td className="py-3 px-4 text-right whitespace-nowrap font-medium text-gray-900">
+                        {formatCurrency(order.total ?? 0)}
+                      </td>
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-700">{formatDateShort(order.created_at)}</div>
+                        <div className="text-xs text-gray-500">{formatTime(order.created_at)}</div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <Badge variant={statusConfig?.color as 'success' | 'warning' | 'error' | 'info' | 'default'} className="text-xs whitespace-nowrap">
+                          {statusConfig?.icon} {statusConfig?.label}
+                        </Badge>
+                        <Badge variant="success" className="ml-1 text-xs whitespace-nowrap">
+                          <CheckCircle className="h-3 w-3 inline mr-0.5" aria-hidden />
+                          Paid
+                        </Badge>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <Button
+                          size="sm"
+                          onClick={() => handleAccept(order.id)}
+                          className="inline-flex items-center gap-1.5"
+                          isLoading={acceptingId === order.id}
+                        >
+                          <CheckCircle className="h-4 w-4" aria-hidden />
+                          Accept order
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       )}
     </div>
   );

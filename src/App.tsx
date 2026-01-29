@@ -34,6 +34,7 @@ import { CreateStore } from './pages/Restaurant/CreateStore';
 import { StoreSettings } from './pages/Restaurant/StoreSettings';
 
 // Rider Pages
+import { RiderDashboard } from './pages/Rider/Dashboard';
 import { RiderOrders } from './pages/Rider/Orders';
 import { RiderDeliveries } from './pages/Rider/Deliveries';
 
@@ -87,6 +88,7 @@ function App() {
 
           {/* Rider Routes */}
           <Route element={<ProtectedRoute requiredRole="rider" />}>
+            <Route path="/rider/dashboard" element={<RiderDashboard />} />
             <Route path="/rider/orders" element={<RiderOrders />} />
             <Route path="/rider/deliveries" element={<RiderDeliveries />} />
           </Route>

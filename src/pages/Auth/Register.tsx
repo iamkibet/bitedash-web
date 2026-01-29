@@ -18,7 +18,7 @@ function getDashboardPath(role: 'customer' | 'restaurant' | 'rider'): string {
     case 'restaurant':
       return '/store/dashboard';
     case 'rider':
-      return '/rider/orders';
+      return '/rider/dashboard';
     default:
       return '/stores';
   }

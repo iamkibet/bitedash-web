@@ -17,7 +17,7 @@ function getDashboardPath(role: UserRole | null): string {
     case 'restaurant':
       return '/store/dashboard';
     case 'rider':
-      return '/rider/orders';
+      return '/rider/dashboard';
     case 'admin':
       return '/admin/dashboard';
     default:
