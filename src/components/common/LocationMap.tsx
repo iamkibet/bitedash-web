@@ -175,10 +175,10 @@ export const LocationMap = ({ latitude, longitude, onLocationSelect, className =
           size="sm"
           onClick={handleGetCurrentLocation}
           isLoading={isLocating}
-          className="w-full sm:w-auto"
+          className="w-full sm:w-auto inline-flex items-center justify-center gap-2"
         >
-          <Navigation className="h-4 w-4 mr-2" />
-          {isLocating ? 'Locating...' : 'Use My Location'}
+          <Navigation className="h-4 w-4 shrink-0" aria-hidden />
+          <span>{isLocating ? 'Locating...' : 'Use My Location'}</span>
         </Button>
         <p className="text-xs sm:text-sm text-gray-600 text-center sm:text-left">
           Click on the map or drag the marker to set your store location

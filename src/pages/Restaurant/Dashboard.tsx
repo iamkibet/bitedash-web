@@ -527,10 +527,10 @@ export const RestaurantDashboard = () => {
             <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Recent orders</h2>
             <p className="text-sm text-gray-500 mt-0.5">Update status or view details</p>
           </div>
-          <Link to="/store/orders" className="flex-shrink-0">
-            <Button variant="outline" size="sm" className="gap-2 w-full sm:w-auto">
-              View all
-              <ArrowRight className="h-4 w-4" />
+          <Link to="/store/orders" className="flex-shrink-0 ">
+            <Button variant="outline" size="sm" className="w-full sm:w-auto border-none  inline-flex items-center justify-center gap-2">
+              <span>View all</span>
+              <ArrowRight className="h-4 w-4 shrink-0" aria-hidden />
             </Button>
           </Link>
         </div>

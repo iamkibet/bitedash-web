@@ -9,7 +9,15 @@ import { Input } from '../../components/common/Input';
 import { Card } from '../../components/common/Card';
 import { Spinner } from '../../components/common/Spinner';
 import { LocationMap } from '../../components/common/LocationMap';
-import { ArrowLeft, Upload, X, MapPin, Store, Image as ImageIcon } from 'lucide-react';
+import {
+  ArrowLeft,
+  Upload,
+  X,
+  MapPin,
+  Store,
+  Image as ImageIcon,
+  Search,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import type { Restaurant, UpdateRestaurantData } from '../../types/restaurant.types';
 import {
@@ -17,6 +25,8 @@ import {
   MENU_ITEM_IMAGE_MAX_BYTES,
 } from '../../utils/constants';
 import { validateMenuItemImage } from '../../utils/validators';
+import { resolveImageUrl } from '../../utils/formatters';
+import { forwardGeocode, reverseGeocode } from '../../utils/geocoding';
 
 type StoreSettingsFormData = {
   name: string;
@@ -33,8 +43,8 @@ export const StoreSettings = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [selectedLat, setSelectedLat] = useState<number | undefined>();
-  const [selectedLng, setSelectedLng] = useState<number | undefined>();
+  const [isGeocoding, setIsGeocoding] = useState(false);
+  const [addressSearch, setAddressSearch] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const {
@@ -50,6 +60,7 @@ export const StoreSettings = () => {
 
   const latitude = watch('latitude');
   const longitude = watch('longitude');
+  const locationText = watch('location');
 
   useEffect(() => {
     fetchStore();
@@ -57,7 +68,7 @@ export const StoreSettings = () => {
 
   useEffect(() => {
     return () => {
-      if (imagePreview) URL.revokeObjectURL(imagePreview);
+      if (imagePreview && imagePreview.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
     };
   }, [imagePreview]);
 
@@ -74,11 +85,7 @@ export const StoreSettings = () => {
           latitude: myStore.latitude,
           longitude: myStore.longitude,
         });
-        setSelectedLat(myStore.latitude ?? undefined);
-        setSelectedLng(myStore.longitude ?? undefined);
-        if (myStore.image_url) {
-          setImagePreview(myStore.image_url);
-        }
+        setImagePreview(myStore.image_url ? resolveImageUrl(myStore.image_url) ?? myStore.image_url : null);
       } else {
         toast.error('No store found. Please create a store first.');
         navigate('/store/create');
@@ -91,11 +98,40 @@ export const StoreSettings = () => {
     }
   };
 
-  const handleLocationSelect = (lat: number, lng: number) => {
-    setSelectedLat(lat);
-    setSelectedLng(lng);
+  const handleLocationSelect = async (lat: number, lng: number) => {
     setValue('latitude', lat);
     setValue('longitude', lng);
+    try {
+      const address = await reverseGeocode(lat, lng);
+      if (address) setValue('location', address);
+    } catch {
+      toast.error('Could not resolve address for this point. You can type the address manually.');
+    }
+  };
+
+  const handleAddressSearch = async () => {
+    const query = addressSearch.trim();
+    if (!query) {
+      toast.error('Enter an address or place name to search.');
+      return;
+    }
+    try {
+      setIsGeocoding(true);
+      const result = await forwardGeocode(query);
+      if (result) {
+        setValue('latitude', result.lat);
+        setValue('longitude', result.lng);
+        setValue('location', result.displayName);
+        toast.success('Location updated. Adjust the marker on the map if needed.');
+      } else {
+        toast.error('No results found. Try a different address or place name.');
+      }
+    } catch (error) {
+      console.error('Geocoding error:', error);
+      toast.error('Search failed. Please try again.');
+    } finally {
+      setIsGeocoding(false);
+    }
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -118,7 +154,7 @@ export const StoreSettings = () => {
       URL.revokeObjectURL(imagePreview);
     }
     setImageFile(null);
-    setImagePreview(store?.image_url || null);
+    setImagePreview(store?.image_url ? resolveImageUrl(store.image_url) ?? store.image_url : null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -127,48 +163,36 @@ export const StoreSettings = () => {
 
     try {
       setIsSubmitting(true);
-      
-      // Prepare update data
+
       const updateData: UpdateRestaurantData = {
         name: data.name,
         description: data.description,
         location: data.location,
-        latitude: selectedLat,
-        longitude: selectedLng,
+        latitude: data.latitude,
+        longitude: data.longitude,
       };
 
-      // Update store with optional image upload
-      const updatedStore = await restaurantsApi.update(store.id, updateData, imageFile || undefined);
-      
+      const updatedStore = await restaurantsApi.update(store.id, updateData, imageFile ?? undefined);
+
       setStore(updatedStore);
-      // Reset image preview to use the new URL if available
-      if (updatedStore.image_url && !imageFile) {
-        setImagePreview(updatedStore.image_url);
-      } else if (updatedStore.image_url && imageFile) {
-        // If we uploaded a new image, the preview is already set from the file
-        // But we should update it to the server URL
-        if (imagePreview && imagePreview.startsWith('blob:')) {
-          URL.revokeObjectURL(imagePreview);
-        }
-        setImagePreview(updatedStore.image_url);
+      if (updatedStore.image_url) {
+        if (imagePreview?.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
+        setImagePreview(resolveImageUrl(updatedStore.image_url) ?? updatedStore.image_url);
       }
       setImageFile(null);
-      toast.success('Store settings updated successfully!');
+      toast.success('Store settings saved.');
     } catch (error: unknown) {
       const err = error as {
         message?: string;
         validationErrors?: Record<string, string[]>;
-        response?: { status?: number; data?: any };
       };
 
       if (err.validationErrors) {
         Object.entries(err.validationErrors).forEach(([field, messages]) => {
-          if (messages?.[0]) {
-            toast.error(`${field}: ${messages[0]}`);
-          }
+          if (messages?.[0]) toast.error(`${field}: ${messages[0]}`);
         });
       } else {
-        toast.error(err.message || 'Failed to update store settings. Please try again.');
+        toast.error(err.message ?? 'Failed to save. Please try again.');
       }
     } finally {
       setIsSubmitting(false);
@@ -185,9 +209,12 @@ export const StoreSettings = () => {
 
   if (!store) {
     return (
-      <div className="text-center py-12">
-        <h2 className="text-2xl font-semibold text-gray-900 mb-4">No store found</h2>
-        <p className="text-gray-600 mb-6">Please create a store first</p>
+      <div className="flex flex-col items-center justify-center min-h-[400px] px-4 text-center">
+        <div className="rounded-2xl bg-gray-100 p-8 mb-6">
+          <Store className="h-16 w-16 text-gray-400" />
+        </div>
+        <h2 className="text-xl font-semibold text-gray-900 mb-2">No store found</h2>
+        <p className="text-gray-600 text-sm mb-6">Create your store first to manage settings.</p>
         <Link to="/store/create">
           <Button>Create Store</Button>
         </Link>
@@ -195,145 +222,163 @@ export const StoreSettings = () => {
     );
   }
 
-  return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
-      <Link to="/store/dashboard">
-        <Button variant="outline" className="mb-4 sm:mb-6" size="sm">
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          <span className="hidden sm:inline">Back to Dashboard</span>
-          <span className="sm:hidden">Back</span>
-        </Button>
-      </Link>
+  const hasCoordinates = latitude != null && longitude != null && !Number.isNaN(latitude) && !Number.isNaN(longitude);
 
-      <div className="mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Store Settings</h1>
-        <p className="text-gray-600">Manage your store information, logo, and location</p>
+  return (
+    <div className="space-y-6 pb-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <Link
+          to="/store/dashboard"
+          className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to dashboard
+        </Link>
+      </div>
+
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Store settings</h1>
+        <p className="text-gray-500 text-sm mt-0.5">Update your store info, logo, and location for customers.</p>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left Column - Store Information */}
+          {/* Left: Logo + Info */}
           <div className="space-y-6">
-            {/* Store Logo */}
+            {/* Logo */}
             <Card>
-              <div className="mb-4">
-                <h2 className="text-lg font-semibold text-gray-900 mb-1 flex items-center gap-2">
-                  <ImageIcon className="h-5 w-5 text-primary-600" />
-                  Store Logo
-                </h2>
-                <p className="text-sm text-gray-600">
-                  Upload your store logo. This will be displayed in the wheel and everywhere your store is shown.
-                </p>
+              <div className="flex items-center gap-2 mb-4">
+                <ImageIcon className="h-5 w-5 text-primary-600" />
+                <h2 className="text-lg font-semibold text-gray-900">Store logo</h2>
               </div>
-
-              <div className="space-y-4">
-                {/* Logo Preview */}
-                <div className="flex items-center gap-4">
-                  <div className="w-24 h-24 rounded-lg border-2 border-gray-200 overflow-hidden bg-gray-50 flex items-center justify-center">
-                    {imagePreview ? (
+              <p className="text-sm text-gray-500 mb-4">
+                Shown in the store list and on your menu. JPEG, PNG or WebP, max 2MB.
+              </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={MENU_ITEM_IMAGE_ACCEPT}
+                onChange={handleImageChange}
+                className="sr-only"
+                aria-label="Upload logo"
+              />
+              <div className="rounded-xl border-2 border-dashed border-gray-200 bg-gray-50/50 overflow-hidden transition-colors hover:border-gray-300">
+                {imagePreview ? (
+                  <div className="relative group">
+                    <div className="aspect-square max-h-48 w-full bg-gray-100 flex items-center justify-center">
                       <img
                         src={imagePreview}
                         alt="Store logo"
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-contain"
                       />
-                    ) : (
-                      <Store className="h-10 w-10 text-gray-400" />
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept={MENU_ITEM_IMAGE_ACCEPT}
-                      onChange={handleImageChange}
-                      className="hidden"
-                      id="logo-upload"
-                    />
-                    <label
-                      htmlFor="logo-upload"
-                      className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
-                    >
-                      <Upload className="h-4 w-4" />
-                      <span className="text-sm font-medium">Upload Logo</span>
-                    </label>
-                    {imageFile && (
-                      <button
+                    </div>
+                    <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/50 to-transparent flex gap-2">
+                      <Button
                         type="button"
-                        onClick={clearImage}
-                        className="ml-2 inline-flex items-center gap-1 px-3 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="gap-1.5 bg-white/90 border-white text-gray-800 hover:bg-white"
                       >
-                        <X className="h-4 w-4" />
-                        Remove
-                      </button>
-                    )}
-                    <p className="text-xs text-gray-500 mt-2">
-                      JPEG, PNG, or WebP. Max 2MB.
-                    </p>
+                        <Upload className="h-4 w-4" />
+                        Change
+                      </Button>
+                      {imageFile && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={clearImage}
+                          className="gap-1.5 bg-white/90 border-white text-red-600 hover:bg-red-50"
+                        >
+                          <X className="h-4 w-4" />
+                          Remove
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full flex flex-col items-center justify-center gap-2 py-10"
+                  >
+                    <div className="rounded-full bg-gray-200 p-4">
+                      <Store className="h-8 w-8 text-gray-500" />
+                    </div>
+                    <span className="text-sm font-medium text-gray-600">Click to upload logo</span>
+                  </button>
+                )}
               </div>
             </Card>
 
-            {/* Store Information */}
+            {/* Store info */}
             <Card>
-              <div className="mb-4">
-                <h2 className="text-lg font-semibold text-gray-900 mb-1 flex items-center gap-2">
-                  <Store className="h-5 w-5 text-primary-600" />
-                  Store Information
-                </h2>
-                <p className="text-sm text-gray-600">
-                  Update your store name, description, and location.
-                </p>
+              <div className="flex items-center gap-2 mb-4">
+                <Store className="h-5 w-5 text-primary-600" />
+                <h2 className="text-lg font-semibold text-gray-900">Store information</h2>
               </div>
-
               <div className="space-y-4">
                 <Input
-                  label="Store Name"
+                  label="Store name"
                   {...register('name')}
                   error={errors.name?.message}
-                  placeholder="e.g., Mama's Kitchen"
+                  placeholder="e.g. Mama's Kitchen"
                 />
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Description
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Description</label>
                   <textarea
                     {...register('description')}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
-                    rows={4}
-                    placeholder="Describe what your store offers..."
+                    placeholder="What you offer, opening hours, etc."
+                    rows={3}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
                   />
                   {errors.description && (
                     <p className="mt-1 text-sm text-red-600">{errors.description.message}</p>
                   )}
                 </div>
-
                 <Input
-                  label="Location Address"
+                  label="Address / location"
                   {...register('location')}
                   error={errors.location?.message}
-                  placeholder="e.g., Westlands, Nairobi"
+                  placeholder="e.g. Westlands, Nairobi or full address"
                 />
-
-                {/* Hidden inputs for coordinates */}
-                <input type="hidden" {...register('latitude', { valueAsNumber: true })} />
-                <input type="hidden" {...register('longitude', { valueAsNumber: true })} />
               </div>
             </Card>
           </div>
 
-          {/* Right Column - Location Map */}
-          <div>
+          {/* Right: Map + location */}
+          <div className="space-y-6">
             <Card>
-              <div className="mb-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <MapPin className="h-5 w-5 text-primary-600 flex-shrink-0" />
-                  <h2 className="text-lg font-semibold text-gray-900">Store Location</h2>
-                </div>
-                <p className="text-sm text-gray-600">
-                  Click on the map to set your store's location. This helps customers find you easily.
-                </p>
+              <div className="flex items-center gap-2 mb-4">
+                <MapPin className="h-5 w-5 text-primary-600" />
+                <h2 className="text-lg font-semibold text-gray-900">Location on map</h2>
+              </div>
+              <p className="text-sm text-gray-500 mb-4">
+                Search for an address or click the map (or use “Use my location”) to set your store pin. The address above updates automatically when you move the marker.
+              </p>
+
+              {/* Address search */}
+              <div className="flex gap-2 mb-4">
+                <input
+                  type="text"
+                  value={addressSearch}
+                  onChange={(e) => setAddressSearch(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddressSearch())}
+                  placeholder="Search address or place..."
+                  className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleAddressSearch}
+                  disabled={isGeocoding}
+                  isLoading={isGeocoding}
+                  className="shrink-0 gap-1.5"
+                >
+                  <Search className="h-4 w-4" />
+                  Search
+                </Button>
               </div>
 
               <LocationMap
@@ -343,29 +388,33 @@ export const StoreSettings = () => {
                 className="w-full"
               />
 
-              {selectedLat != null && selectedLng != null && (
-                <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-                  <p className="text-sm text-green-800">
-                    <strong>Location selected:</strong> {Number(selectedLat).toFixed(6)}, {Number(selectedLng).toFixed(6)}
+              {hasCoordinates && (
+                <div className="mt-4 p-3 rounded-lg bg-gray-50 border border-gray-100">
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Coordinates</p>
+                  <p className="text-sm font-mono text-gray-700">
+                    {Number(latitude).toFixed(6)}, {Number(longitude).toFixed(6)}
                   </p>
+                  {locationText && (
+                    <p className="text-sm text-gray-600 mt-2 line-clamp-2" title={locationText}>
+                      {locationText}
+                    </p>
+                  )}
                 </div>
               )}
             </Card>
           </div>
         </div>
 
-        {/* Submit Buttons */}
-        <div className="flex flex-col sm:flex-row gap-4 pt-4">
+        <div className="flex flex-col-reverse sm:flex-row gap-3 sm:justify-end pt-2">
           <Button
             type="button"
             variant="outline"
             onClick={() => navigate('/store/dashboard')}
-            className="flex-1"
           >
             Cancel
           </Button>
-          <Button type="submit" className="flex-1" isLoading={isSubmitting}>
-            Save Changes
+          <Button type="submit" isLoading={isSubmitting}>
+            Save changes
           </Button>
         </div>
       </form>

@@ -339,7 +339,7 @@ export const MenuManagement = () => {
 
                 {/* Ratings - compact */}
                 {ratings[item.id] && ratings[item.id].count > 0 && (
-                  <div className="mb-2 pt-2 border-t border-gray-100">
+                  <div className="mb-2 pt-2">
                     <button
                       type="button"
                       onClick={() => toggleRatingsExpanded(item.id)}
@@ -401,7 +401,7 @@ export const MenuManagement = () => {
                 )}
 
                 {/* Actions - icon only */}
-                <div className="flex items-center gap-1 mt-auto pt-2 border-t border-gray-100">
+                <div className="flex items-center gap-1 mt-auto pt-2">
                   <Button
                     variant="outline"
                     size="sm"
