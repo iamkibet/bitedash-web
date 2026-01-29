@@ -16,11 +16,11 @@ export const PAYMENT_STATUSES = {
   failed: { label: 'Failed', color: 'error' },
 } as const;
 
-/** Valid status transitions: preparing → on_the_way, on_the_way → delivered. pending → preparing is automatic (payment). */
+/** Valid status transitions for restaurant: pending → preparing → on_the_way → delivered. */
 export const ORDER_STATUS_TRANSITIONS: Record<string, string[]> = {
-  preparing: ['on_the_way'],
-  on_the_way: ['delivered'],
-  pending: [],
+  pending: ['preparing', 'cancelled'],
+  preparing: ['on_the_way', 'cancelled'],
+  on_the_way: ['delivered', 'cancelled'],
   delivered: [],
   cancelled: [],
 };

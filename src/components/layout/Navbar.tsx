@@ -24,12 +24,12 @@ export const Navbar = ({ onMenuClick, showMenuButton = false, sidebarCollapsed =
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
-  // Fetch favorites when authenticated
+  // Fetch favorites only for customers (API returns 403 for other roles)
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && role === 'customer') {
       fetchFavorites();
     }
-  }, [isAuthenticated, fetchFavorites]);
+  }, [isAuthenticated, role, fetchFavorites]);
 
   // Close profile menu when clicking outside
   useEffect(() => {
@@ -63,7 +63,8 @@ export const Navbar = ({ onMenuClick, showMenuButton = false, sidebarCollapsed =
   };
 
   const cartItemCount = getItemCount();
-  const favoritesCount = isAuthenticated ? getFavoritesCount() : 0;
+  const favoritesCount = isAuthenticated && role === 'customer' ? getFavoritesCount() : 0;
+  const showFavorites = isAuthenticated && role === 'customer';
 
   const getRoleLinks = () => {
     if (!isAuthenticated) return [];
@@ -92,7 +93,7 @@ export const Navbar = ({ onMenuClick, showMenuButton = false, sidebarCollapsed =
 
   return (
     <nav className="bg-white shadow-md sticky top-0 z-40 border-b border-gray-100">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="w-full px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center gap-4">
             {/* Hamburger Menu Button - Only show in AppLayout and on mobile */}
@@ -183,8 +184,8 @@ export const Navbar = ({ onMenuClick, showMenuButton = false, sidebarCollapsed =
 
           {/* Desktop Actions - Always show */}
           <div className="hidden md:flex items-center gap-6">
-            {/* Favorites Icon - Show for authenticated users */}
-            {isAuthenticated && (
+            {/* Favorites Icon - Show for customers only */}
+            {showFavorites && (
               <Link
                 to="/favorites"
                 className="relative text-gray-700 hover:text-primary-600 transition-colors"
@@ -269,8 +270,8 @@ export const Navbar = ({ onMenuClick, showMenuButton = false, sidebarCollapsed =
 
           {/* Mobile Actions - Cart and Menu Button */}
           <div className="md:hidden flex items-center gap-3">
-            {/* Favorites Icon - Show for authenticated users */}
-            {isAuthenticated && (
+            {/* Favorites Icon - Show for customers only */}
+            {showFavorites && (
               <Link
                 to="/favorites"
                 className="relative text-gray-700 hover:text-primary-600 transition-colors"

@@ -41,7 +41,7 @@ export const Dishes = ({
   onQuantityChange,
   onAddToCart,
 }: DishesProps) => {
-  const { isAuthenticated, user } = useAuthStore();
+  const { isAuthenticated, user, role } = useAuthStore();
   const {
     favoriteIds,
     fetchFavorites,
@@ -147,12 +147,12 @@ export const Dishes = ({
     }
   }, [allMenuItems, isAuthenticated, user]);
 
-  // Fetch favorites when authenticated
+  // Fetch favorites only for customers (API returns 403 for other roles)
   useEffect(() => {
-    if (isAuthenticated && allMenuItems.length > 0) {
+    if (isAuthenticated && role === 'customer' && allMenuItems.length > 0) {
       void fetchFavorites();
     }
-  }, [isAuthenticated, allMenuItems.length, fetchFavorites]);
+  }, [isAuthenticated, role, allMenuItems.length, fetchFavorites]);
 
   // Fetch ratings when authenticated
   useEffect(() => {
