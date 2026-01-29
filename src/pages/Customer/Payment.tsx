@@ -3,7 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useOrderStore } from '../../store/orderStore';
 import { paymentsApi } from '../../api/payments';
 import { Card } from '../../components/common/Card';
-import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
 import { Spinner } from '../../components/common/Spinner';
 import { formatCurrency } from '../../utils/formatters';
@@ -13,11 +12,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { paymentSchema } from '../../utils/validators';
 import { toast } from 'sonner';
 import { isUnpaid } from '../../utils/orderLifecycle';
-import { ArrowLeft, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, CreditCard, Smartphone } from 'lucide-react';
+import { cn } from '../../utils/cn';
 
-type PaymentFormData = {
-  phone_number: string;
-};
+type PaymentFormData = { phone_number: string };
 
 interface ApiError {
   message: string;
@@ -38,9 +36,7 @@ export const Payment = () => {
     watch,
   } = useForm<PaymentFormData>({
     resolver: zodResolver(paymentSchema),
-    defaultValues: {
-      phone_number: '',
-    },
+    defaultValues: { phone_number: '' },
   });
 
   const phoneNumber = watch('phone_number');
@@ -49,7 +45,6 @@ export const Payment = () => {
     if (id) fetchOrder(Number(id));
   }, [id, fetchOrder]);
 
-  // Redirect if order is already paid
   useEffect(() => {
     if (currentOrder && id && !isUnpaid(currentOrder)) {
       toast.info('This order is already paid.');
@@ -57,19 +52,12 @@ export const Payment = () => {
     }
   }, [currentOrder, id, navigate]);
 
-  // Watch for order status changes to detect payment completion
   useEffect(() => {
-    if (paymentStatus === 'pending' && currentOrder) {
-      // If order status changed from 'pending', payment was successful
-      if (currentOrder.status !== 'pending') {
-        console.log('Order status changed to:', currentOrder.status, '- Payment successful!');
-        setPaymentStatus('success');
-        setIsPolling(false);
-        toast.success('Payment confirmed!');
-        setTimeout(() => {
-          navigate('/orders');
-        }, 2000);
-      }
+    if (paymentStatus === 'pending' && currentOrder && currentOrder.status !== 'pending') {
+      setPaymentStatus('success');
+      setIsPolling(false);
+      toast.success('Payment confirmed!');
+      setTimeout(() => navigate('/orders'), 2000);
     }
   }, [currentOrder, paymentStatus, navigate]);
 
@@ -84,37 +72,25 @@ export const Payment = () => {
   const startPolling = (): (() => void) => {
     setIsPolling(true);
     let pollCount = 0;
-    const maxPolls = 100; // 100 polls * 3 seconds = 5 minutes max
-    
+    const maxPolls = 100;
     const interval = setInterval(async () => {
       if (!id || paymentStatus !== 'pending') {
         clearInterval(interval);
         setIsPolling(false);
         return;
       }
-
       try {
         pollCount++;
-        console.log(`Polling payment status (attempt ${pollCount})...`);
-        
-        // Fetch the latest order data - this updates the store
-        // The useEffect watching currentOrder.status will detect the change
         await fetchOrder(Number(id));
-
-        // Stop polling after max attempts
         if (pollCount >= maxPolls) {
-          console.warn('Polling timeout reached');
           clearInterval(interval);
           setIsPolling(false);
-          toast.warning('Payment verification timeout. Please check your order status manually.');
+          toast.warning('Verification timeout. Check your order status.');
         }
-      } catch (error) {
-        console.error('Polling error:', error);
-        // Don't stop polling on error, just log it
+      } catch {
+        // keep polling
       }
-    }, 3000); // Poll every 3 seconds
-
-    // Return cleanup function
+    }, 3000);
     return () => {
       clearInterval(interval);
       setIsPolling(false);
@@ -123,128 +99,75 @@ export const Payment = () => {
 
   const onSubmit = async (data: PaymentFormData) => {
     if (!id || !currentOrder) return;
-
     try {
       setPaymentStatus('initiating');
       const formattedPhone = formatPhoneNumber(data.phone_number);
-      
       if (!validatePhoneNumber(formattedPhone)) {
         toast.error('Invalid phone number format');
         setPaymentStatus('idle');
         return;
       }
-
-      // Extract the 9 digits (712345678) from +254712345678
       let phoneDigits = formattedPhone.replace(/^\+254/, '');
-      
-      // If it still has 254 prefix, remove it
-      if (phoneDigits.startsWith('254')) {
-        phoneDigits = phoneDigits.slice(3);
-      }
-      
-      // Ensure we have exactly 9 digits starting with 7
+      if (phoneDigits.startsWith('254')) phoneDigits = phoneDigits.slice(3);
       if (!phoneDigits.startsWith('7') || phoneDigits.length !== 9) {
-        toast.error('Phone number must be 9 digits starting with 7 (e.g., 712345678)');
+        toast.error('Phone must be 9 digits starting with 7 (e.g. 712345678)');
         setPaymentStatus('idle');
         return;
       }
-
-      // M-Pesa APIs typically expect 254712345678 format (without +)
       const phoneForApi = `254${phoneDigits}`;
-
-      console.log('Sending payment request:', {
-        orderId: Number(id),
-        phone_number: phoneForApi,
-        phoneDigits,
-        formattedPhone,
-        originalPhone: data.phone_number,
-        phoneLength: phoneForApi.length,
-      });
-
       await paymentsApi.initiate(Number(id), { phone_number: phoneForApi });
       setPaymentStatus('pending');
-      toast.success('Payment request sent! Please check your phone for the M-Pesa prompt.');
+      toast.success('Check your phone for the M-Pesa prompt.');
     } catch (error: unknown) {
       const apiError = error as ApiError;
       setPaymentStatus('failed');
-      
-      // Handle validation errors from backend
-      if (apiError.validationErrors) {
-        console.error('Backend validation errors:', JSON.stringify(apiError.validationErrors, null, 2));
-        console.error('Full error object:', JSON.stringify(error, null, 2));
-        console.error('Error message:', apiError.message);
-        
-        // Show specific phone number format error if available
-        if (apiError.validationErrors.phone_number) {
-          const phoneErrors = Array.isArray(apiError.validationErrors.phone_number) 
-            ? apiError.validationErrors.phone_number 
-            : [apiError.validationErrors.phone_number];
-          
-          phoneErrors.forEach((msg: string) => {
-            console.error('Phone error message:', msg);
-            toast.error(`Phone Number: ${msg}`, {
-              duration: 6000,
-            });
-          });
-        } else {
-          // Show other validation errors
-          Object.entries(apiError.validationErrors).forEach(([field, messages]) => {
-            const errorMessages = Array.isArray(messages) ? messages : [messages];
-            errorMessages.forEach((msg: string) => {
-              toast.error(`${field}: ${msg}`, { duration: 5000 });
-            });
-          });
-        }
-        
-        // Also show the general error message if available (it often contains the full format requirement)
-        if (apiError.message && apiError.message !== 'Validation failed.') {
-          console.error('General error message:', apiError.message);
-          toast.error(apiError.message, { 
-            duration: 6000,
-            description: 'Check console for full details',
-          });
-        }
+      if (apiError.validationErrors?.phone_number) {
+        const msgs = Array.isArray(apiError.validationErrors.phone_number)
+          ? apiError.validationErrors.phone_number
+          : [apiError.validationErrors.phone_number];
+        msgs.forEach((msg: string) => toast.error(`Phone: ${msg}`, { duration: 6000 }));
+      } else if (apiError.validationErrors) {
+        Object.entries(apiError.validationErrors).forEach(([, messages]) => {
+          (Array.isArray(messages) ? messages : [messages]).forEach((msg: string) =>
+            toast.error(String(msg), { duration: 5000 })
+          );
+        });
+      }
+      if (apiError.message && apiError.message !== 'Validation failed.') {
+        toast.error(apiError.message, { duration: 6000 });
       } else {
-        console.error('Payment initiation error:', error);
         toast.error(apiError.message || 'Failed to initiate payment');
       }
     }
   };
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Remove all non-digits
     let value = e.target.value.replace(/\D/g, '');
-    
-    // If user starts typing, ensure it starts with 7
     if (value.length > 0 && !value.startsWith('7')) {
-      // If they typed 0, replace with 7
-      if (value.startsWith('0')) {
-        value = '7' + value.slice(1);
-      } else {
-        // Otherwise prepend 7 if it doesn't start with it
-        value = '7' + value;
-      }
+      value = value.startsWith('0') ? '7' + value.slice(1) : '7' + value;
     }
-    
-    // Limit to 9 digits (7XXXXXXXX)
-    if (value.length > 9) {
-      value = value.slice(0, 9);
-    }
-    
-    // Format as +254XXXXXXXXX for validation
-    const fullPhone = value ? `+254${value}` : '';
-    setValue('phone_number', fullPhone, { shouldValidate: true });
+    if (value.length > 9) value = value.slice(0, 9);
+    setValue('phone_number', value ? `+254${value}` : '', { shouldValidate: true });
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    let value = e.clipboardData.getData('text').replace(/\D/g, '');
+    if (value.startsWith('254')) value = value.slice(3);
+    if (value.startsWith('0')) value = value.slice(1);
+    if (value.length > 0 && !value.startsWith('7')) value = '7' + value;
+    value = value.slice(0, 9);
+    setValue('phone_number', value ? `+254${value}` : '', { shouldValidate: true });
   };
 
   if (!currentOrder) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
+      <div className="flex items-center justify-center min-h-[320px]">
         <Spinner size="lg" />
       </div>
     );
   }
 
-  // Ensure we have a valid total: use order.total, total_amount, or compute from items
   const displayTotal = (() => {
     const orderWithTotal = currentOrder as typeof currentOrder & { total_amount?: number };
     const raw = currentOrder.total ?? orderWithTotal.total_amount;
@@ -255,144 +178,125 @@ export const Payment = () => {
   })();
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <Button
-        variant="outline"
+    <div className="space-y-6 pb-8">
+      {/* Back */}
+      <button
+        type="button"
         onClick={() => navigate(`/orders/${id}`)}
-        className="mb-4"
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-primary-600 transition-colors"
       >
-        <ArrowLeft className="h-4 w-4 mr-2" />
-        Back to Order
-      </Button>
+        <ArrowLeft className="h-4 w-4" />
+        Back to order
+      </button>
 
-      <Card>
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">Complete Payment</h1>
-
-        <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-gray-600">Order Total</span>
-            <span className="text-2xl font-bold text-primary-600">
-              {formatCurrency(displayTotal)}
-            </span>
+      {/* Order summary */}
+      <Card className="border border-gray-100">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-primary-50 flex items-center justify-center shrink-0">
+            <CreditCard className="h-5 w-5 text-primary-600" />
           </div>
-          <p className="text-sm text-gray-500">Order #{currentOrder.id}</p>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Amount due</p>
+            <p className="text-xl font-bold text-primary-600">{formatCurrency(displayTotal)}</p>
+            <p className="text-sm text-gray-500">Order #{currentOrder.id}</p>
+          </div>
         </div>
+      </Card>
 
-        {paymentStatus === 'idle' && (
+      {/* Content by status */}
+      {paymentStatus === 'idle' && (
+        <Card className="border border-gray-100">
+          <h2 className="text-base font-semibold text-gray-900 mb-1">Pay with M-Pesa</h2>
+          <p className="text-sm text-gray-500 mb-4">Enter the number linked to your M-Pesa account.</p>
+
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="w-full">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                M-Pesa Phone Number
+            <div>
+              <label htmlFor="mpesa-phone" className="block text-sm font-medium text-gray-700 mb-1.5">
+                Phone number
               </label>
-              <div className="relative flex items-center">
-                <div className="absolute left-0 flex items-center h-full pl-4 pr-2 bg-gray-50 border border-r-0 border-gray-300 rounded-l-lg">
-                  <span className="text-gray-700 font-semibold text-base">
-                    +254
-                  </span>
-                </div>
+              <div className="flex rounded-lg border border-gray-200 overflow-hidden focus-within:ring-2 focus-within:ring-primary-500/20 focus-within:border-primary-500">
+                <span className="flex items-center px-4 bg-gray-50 text-gray-600 font-medium border-r border-gray-200 text-base">
+                  +254
+                </span>
                 <input
+                  id="mpesa-phone"
                   type="tel"
                   inputMode="numeric"
                   placeholder="712345678"
                   maxLength={9}
                   value={phoneNumber ? phoneNumber.replace(/^\+254/, '') : ''}
-                  className={`w-full pl-24 pr-4 py-2.5 border rounded-r-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors ${
-                    errors.phone_number ? 'border-red-500' : 'border-gray-300'
-                  }`}
                   onChange={handlePhoneChange}
+                  onPaste={handlePaste}
                   onKeyDown={(e) => {
-                    // Only allow numbers and backspace/delete
                     if (!/[0-9]/.test(e.key) && !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab', 'Home', 'End'].includes(e.key)) {
                       e.preventDefault();
                     }
                   }}
-                  onPaste={(e) => {
-                    e.preventDefault();
-                    const pasted = e.clipboardData.getData('text').replace(/\D/g, '');
-                    if (pasted.length > 0) {
-                      let value = pasted;
-                      // Remove leading 254 or 0 if present
-                      if (value.startsWith('254')) {
-                        value = value.slice(3);
-                      } else if (value.startsWith('0')) {
-                        value = value.slice(1);
-                      }
-                      // Ensure starts with 7
-                      if (!value.startsWith('7') && value.length > 0) {
-                        value = '7' + value;
-                      }
-                      // Limit to 9 digits
-                      value = value.slice(0, 9);
-                      const fullPhone = value ? `+254${value}` : '';
-                      setValue('phone_number', fullPhone, { shouldValidate: true });
-                    }
-                  }}
+                  className={cn(
+                    'flex-1 min-w-0 px-4 py-3 text-base border-0 focus:ring-0 focus:outline-none',
+                    errors.phone_number && 'placeholder-red-300'
+                  )}
                 />
               </div>
-              <p className="mt-1.5 text-xs text-gray-500">
-                Enter your 9-digit M-Pesa number starting with 7 (e.g., 712345678)
-              </p>
+              <p className="mt-1.5 text-xs text-gray-500">9 digits starting with 7</p>
               {errors.phone_number && (
                 <p className="mt-1 text-sm text-red-600">{errors.phone_number.message}</p>
               )}
             </div>
 
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <p className="text-sm text-blue-800">
-                You will receive an M-Pesa prompt on your phone. Please enter your M-Pesa PIN to complete the payment.
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-primary-50 border border-primary-100">
+              <Smartphone className="h-5 w-5 text-primary-600 shrink-0 mt-0.5" />
+              <p className="text-sm text-primary-800">
+                You’ll get an M-Pesa prompt on this number. Enter your PIN to complete payment.
               </p>
             </div>
 
-            <Button type="submit" className="w-full">
-              Pay with M-Pesa
+            <Button type="submit">
+              Pay now
             </Button>
           </form>
-        )}
+        </Card>
+      )}
 
-        {paymentStatus === 'initiating' && (
-          <div className="text-center py-8">
-            <Spinner size="lg" className="mx-auto mb-4" />
-            <p className="text-gray-600">Initiating payment...</p>
-          </div>
-        )}
+      {paymentStatus === 'initiating' && (
+        <Card className="border border-gray-100 text-center py-10">
+          <Spinner size="lg" className="mx-auto mb-4" />
+          <p className="text-gray-600 font-medium">Starting payment…</p>
+          <p className="text-sm text-gray-500 mt-1">Please wait.</p>
+        </Card>
+      )}
 
-        {paymentStatus === 'pending' && (
-          <div className="text-center py-8">
-            <div className="mb-4">
-              <Spinner size="lg" className="mx-auto mb-4" />
-              <Badge variant="warning" className="text-base">
-                Payment Pending
-              </Badge>
-            </div>
-            <p className="text-gray-600 mb-2">
-              Please check your phone and enter your M-Pesa PIN.
-            </p>
-            <p className="text-sm text-gray-500">
-              We're checking your payment status...
-            </p>
-          </div>
-        )}
+      {paymentStatus === 'pending' && (
+        <Card className="border border-gray-100 text-center py-10">
+          <Spinner size="lg" className="mx-auto mb-4" />
+          <p className="font-semibold text-gray-900">Waiting for payment</p>
+          <p className="text-sm text-gray-600 mt-2">Check your phone and enter your M-Pesa PIN.</p>
+          <p className="text-xs text-gray-500 mt-2">We’ll update this page when payment is confirmed.</p>
+        </Card>
+      )}
 
-        {paymentStatus === 'success' && (
-          <div className="text-center py-8">
-            <CheckCircle className="h-16 w-16 text-green-600 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Payment Successful!</h2>
-            <p className="text-gray-600">Your order is being processed.</p>
+      {paymentStatus === 'success' && (
+        <Card className="border border-gray-100 text-center py-10">
+          <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+            <CheckCircle className="h-8 w-8 text-green-600" />
           </div>
-        )}
+          <h2 className="text-lg font-semibold text-gray-900">Payment successful</h2>
+          <p className="text-sm text-gray-500 mt-1">Redirecting to your orders…</p>
+        </Card>
+      )}
 
-        {paymentStatus === 'failed' && (
-          <div className="text-center py-8">
-            <XCircle className="h-16 w-16 text-red-600 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Payment Failed</h2>
-            <p className="text-gray-600 mb-4">Please check your phone number format and try again.</p>
-            <p className="text-sm text-gray-500 mb-4">
-              Expected format: 254712345678 or 0712345678
-            </p>
-            <Button onClick={() => setPaymentStatus('idle')}>Try Again</Button>
+      {paymentStatus === 'failed' && (
+        <Card className="border border-gray-100 text-center py-10">
+          <div className="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+            <XCircle className="h-8 w-8 text-red-600" />
           </div>
-        )}
-      </Card>
+          <h2 className="text-lg font-semibold text-gray-900">Payment failed</h2>
+          <p className="text-sm text-gray-500 mt-2">Check your number (e.g. 712345678) and try again.</p>
+          <Button onClick={() => setPaymentStatus('idle')} className="mt-4">
+            Try again
+          </Button>
+        </Card>
+      )}
     </div>
   );
 };

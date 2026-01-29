@@ -15,9 +15,7 @@ import {
   CheckCircle,
   Store,
   MapPin,
-  Clock,
   User,
-  Package,
   Star,
 } from 'lucide-react';
 import { MenuItemImage } from '../../components/common/MenuItemImage';
@@ -39,7 +37,7 @@ export const OrderDetails = () => {
   const [updating, setUpdating] = useState(false);
   const [ratings, setRatings] = useState<Record<number, Rating>>({});
   const [showRatingForm, setShowRatingForm] = useState<Record<number, boolean>>({});
-  const [loadingRatings, setLoadingRatings] = useState(false);
+  const [loadingRatings, setLoadingRatings] = useState<boolean>(false);
   const [favoriteIds, setFavoriteIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
@@ -87,9 +85,13 @@ export const OrderDetails = () => {
         setFavoriteIds((prev) => new Set(prev).add(menuItemId));
         toast.success('Added to favorites');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to toggle favorite:', error);
-      toast.error(error?.response?.data?.message || 'Failed to update favorite');
+      const message =
+        error && typeof error === 'object' && 'response' in error
+          ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined;
+      toast.error(message || 'Failed to update favorite');
     }
   };
 
@@ -129,7 +131,7 @@ export const OrderDetails = () => {
     }
   };
 
-  const canRateItem = (menuItemId: number) => {
+  const canRateItem = () => {
     if (isStoreView) return false;
     if (!currentOrder) return false;
     // Can rate if order is delivered and paid
@@ -137,10 +139,6 @@ export const OrderDetails = () => {
       currentOrder.status === 'delivered' &&
       currentOrder.payment_status === 'paid'
     );
-  };
-
-  const hasRatedItem = (menuItemId: number) => {
-    return ratings[menuItemId] !== undefined;
   };
 
   const handleRatingSubmitted = async () => {
@@ -195,138 +193,108 @@ export const OrderDetails = () => {
   const orderItems = currentOrder.items ?? [];
   const customer = currentOrder.user ?? (currentOrder as { customer?: { name?: string; phone?: string } }).customer;
 
+  type BadgeVariant = 'success' | 'warning' | 'error' | 'info' | 'default';
+
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      {/* Back nav */}
-      <Button
-        variant="outline"
+    <div className="space-y-6 pb-8">
+      {/* Back */}
+      <button
+        type="button"
         onClick={() => navigate(isStoreView ? '/store/orders' : '/orders')}
-        className="gap-2"
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-primary-600 transition-colors"
       >
         <ArrowLeft className="h-4 w-4" />
-        {isStoreView ? 'Back to Store Orders' : 'Back to Orders'}
-      </Button>
+        {isStoreView ? 'Store orders' : 'My orders'}
+      </button>
 
-      {/* Pay Now CTA - customer only, when unpaid */}
-      {!isStoreView && unpaid && (
-        <Card className="border-2 border-primary-300 bg-gradient-to-br from-primary-50 to-white" padding="lg">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h2 className="text-xl font-bold text-gray-900 mb-1">Payment required</h2>
-              <p className="text-gray-600 text-sm">
-                Complete payment for Order #{currentOrder.id} ({formatCurrency(currentOrder.total ?? 0)}) to confirm your order.
-              </p>
-            </div>
-            <Button
-              onClick={() => navigate(`/orders/${currentOrder.id}/payment`)}
-              className="gap-2 w-full sm:w-auto shrink-0 bg-primary-600 hover:bg-primary-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all py-3 px-6"
-            >
-              <CreditCard className="h-5 w-5" />
-              Pay Now
-            </Button>
-          </div>
-        </Card>
-      )}
-
-      {/* Order header */}
-      <Card>
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
+      {/* Order overview */}
+      <Card className="border border-gray-100">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
+            <h1 className="text-xl font-semibold text-gray-900">
               Order #{currentOrder.id}
             </h1>
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant={statusConfig.color as 'success' | 'warning' | 'error' | 'info' | 'default'}>
-                {statusConfig.icon} {statusConfig.label}
+            <div className="flex flex-wrap items-center gap-2 mt-2">
+              <Badge variant={statusConfig.color as BadgeVariant} className="text-xs">
+                {statusConfig.label}
               </Badge>
               {paymentConfig && (
-                <Badge variant={paymentConfig.color as 'success' | 'warning' | 'error' | 'info' | 'default'}>
+                <Badge variant={paymentConfig.color as BadgeVariant} className="text-xs">
                   {paymentConfig.label}
                 </Badge>
               )}
-              <span className="inline-flex items-center gap-1.5 text-sm text-gray-500">
-                <Clock className="h-4 w-4" />
+              <span className="text-sm text-gray-500">
                 {formatDate(currentOrder.created_at)}
               </span>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-            {!isStoreView && unpaid && (
-              <Button
-                size="sm"
-                onClick={() => navigate(`/orders/${currentOrder.id}/payment`)}
-                className="gap-2"
-              >
-                <CreditCard className="h-4 w-4" />
-                Pay Now
-              </Button>
-            )}
+          <div className="flex flex-wrap items-center gap-2">
             {isStoreView && nextTransitions.map((next) => (
               <Button
                 key={next}
                 size="sm"
                 isLoading={updating}
                 onClick={() => handleStatusUpdate(next)}
-                className="gap-1.5"
+                className="inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap"
               >
-                {next === 'on_the_way' && <Truck className="h-4 w-4" />}
-                {next === 'delivered' && <CheckCircle className="h-4 w-4" />}
-                {next === 'on_the_way' ? 'Mark On the Way' : 'Mark Delivered'}
+                {next === 'on_the_way' && <Truck className="h-4 w-4 shrink-0" />}
+                {next === 'delivered' && <CheckCircle className="h-4 w-4 shrink-0" />}
+                <span>{next === 'on_the_way' ? 'On the way' : 'Delivered'}</span>
               </Button>
             ))}
             {canCancel && (
               <Button variant="danger" size="sm" onClick={handleCancel}>
-                Cancel Order
+                Cancel
               </Button>
             )}
           </div>
         </div>
 
-        {/* Summary grid: Store, Delivery, Rider, Customer (store view) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-gray-200">
+        {/* Store, delivery, rider, customer */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 mt-4 border-t border-gray-100">
           <div className="flex gap-3">
-            <div className="p-2 h-fit rounded-lg bg-gray-100">
-              <Store className="h-5 w-5 text-gray-600" />
+            <div className="p-2 rounded-lg bg-gray-50 shrink-0">
+              <Store className="h-4 w-4 text-gray-500" />
             </div>
-            <div>
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Store</p>
-              <p className="font-semibold text-gray-900">{currentOrder.restaurant?.name ?? '—'}</p>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Store</p>
+              <p className="font-medium text-gray-900 truncate">{currentOrder.restaurant?.name ?? '—'}</p>
               {currentOrder.restaurant?.location && (
-                <p className="text-sm text-gray-500">{currentOrder.restaurant.location}</p>
+                <p className="text-sm text-gray-500 truncate">{currentOrder.restaurant.location}</p>
               )}
             </div>
           </div>
           <div className="flex gap-3">
-            <div className="p-2 h-fit rounded-lg bg-gray-100">
-              <MapPin className="h-5 w-5 text-gray-600" />
+            <div className="p-2 rounded-lg bg-gray-50 shrink-0">
+              <MapPin className="h-4 w-4 text-gray-500" />
             </div>
-            <div>
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Delivery address</p>
-              <p className="font-semibold text-gray-900">{currentOrder.delivery_address}</p>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Delivery</p>
+              <p className="font-medium text-gray-900 break-words">{currentOrder.delivery_address}</p>
             </div>
           </div>
           {currentOrder.rider && (
             <div className="flex gap-3 sm:col-span-2">
-              <div className="p-2 h-fit rounded-lg bg-blue-50">
-                <Truck className="h-5 w-5 text-blue-600" />
+              <div className="p-2 rounded-lg bg-primary-50 shrink-0">
+                <Truck className="h-4 w-4 text-primary-600" />
               </div>
               <div>
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                  {isStoreView ? 'Picked up by' : 'Rider'}
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  {isStoreView ? 'Rider' : 'Delivery by'}
                 </p>
-                <p className="font-semibold text-gray-900">{currentOrder.rider.name}</p>
+                <p className="font-medium text-gray-900">{currentOrder.rider.name}</p>
                 <p className="text-sm text-gray-500">{currentOrder.rider.phone}</p>
               </div>
             </div>
           )}
           {isStoreView && customer && (
             <div className="flex gap-3 sm:col-span-2">
-              <div className="p-2 h-fit rounded-lg bg-gray-100">
-                <User className="h-5 w-5 text-gray-600" />
+              <div className="p-2 rounded-lg bg-gray-50 shrink-0">
+                <User className="h-4 w-4 text-gray-500" />
               </div>
               <div>
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Customer</p>
-                <p className="font-semibold text-gray-900">{customer.name}</p>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</p>
+                <p className="font-medium text-gray-900">{customer.name}</p>
                 <p className="text-sm text-gray-500">{customer.phone}</p>
               </div>
             </div>
@@ -334,18 +302,23 @@ export const OrderDetails = () => {
         </div>
 
         {currentOrder.notes && (
-          <div className="mt-4 pt-4 border-t border-gray-200">
-            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Notes</p>
-            <p className="text-gray-700">{currentOrder.notes}</p>
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Notes</p>
+            <p className="text-sm text-gray-700">{currentOrder.notes}</p>
           </div>
         )}
       </Card>
 
-      {/* What's ordered – prominent section */}
-      <Card>
-        <div className="flex items-center gap-2 mb-4">
-          <Package className="h-5 w-5 text-gray-600" />
-          <h2 className="text-xl font-semibold text-gray-900">What&apos;s ordered</h2>
+      {/* What's ordered */}
+      <Card className="border border-gray-100">
+        <div className="flex items-center justify-between gap-2 mb-4">
+          <h2 className="text-base font-semibold text-gray-900">Order items</h2>
+          {!isStoreView && loadingRatings && (
+            <span className="text-sm text-gray-500 inline-flex items-center gap-1.5">
+              <Spinner size="sm" />
+              Loading ratings…
+            </span>
+          )}
         </div>
         {orderItems.length === 0 ? (
           <p className="text-center text-gray-500 py-8">No items in this order.</p>
@@ -360,42 +333,18 @@ export const OrderDetails = () => {
               // Use menu_item.id if available, otherwise fall back to menu_item_id
               const menuItemId = menuItem?.id || item.menu_item_id;
               const existingRating = menuItemId ? ratings[menuItemId] : undefined;
-              const canRate = menuItemId ? canRateItem(menuItemId) : false;
-              const hasRated = menuItemId ? hasRatedItem(menuItemId) : false;
+              const canRate = menuItemId ? canRateItem() : false;
               const showForm = menuItemId ? showRatingForm[menuItemId] : false;
 
               return (
                 <div key={item.id} className="space-y-3">
-                  <div className="flex gap-4 p-4 rounded-xl bg-gray-50 border border-gray-100 hover:border-gray-200 transition-colors">
-                    <div className="w-20 sm:w-24 shrink-0 rounded-lg overflow-hidden bg-white border border-gray-200">
+                  <div className="flex gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg bg-gray-50/80 border border-gray-100">
+                    <div className="w-16 h-16 sm:w-20 sm:h-20 shrink-0 rounded-lg overflow-hidden bg-white border border-gray-100">
                       <MenuItemImage src={menuItem?.image_url} alt={name} aspectRatio={1} />
                     </div>
                     <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                       <div className="flex-1">
-                        <div className="flex items-start gap-2">
-                          <p className="font-semibold text-gray-900 flex-1">{name}</p>
-                          {isAuthenticated && !isStoreView && menuItemId && (
-                            <button
-                              onClick={() => handleToggleFavorite(menuItemId)}
-                              className={`p-1.5 rounded-full transition-colors ${
-                                favoriteIds.has(menuItemId)
-                                  ? 'text-red-500 hover:text-red-600'
-                                  : 'text-gray-400 hover:text-red-500'
-                              }`}
-                              aria-label={
-                                favoriteIds.has(menuItemId)
-                                  ? 'Remove from favorites'
-                                  : 'Add to favorites'
-                              }
-                            >
-                              <Heart
-                                className={`h-4 w-4 ${
-                                  favoriteIds.has(menuItemId) ? 'fill-current' : ''
-                                }`}
-                              />
-                            </button>
-                          )}
-                        </div>
+                        <p className="font-semibold text-gray-900 truncate">{name}</p>
                         <p className="text-sm text-gray-600">
                           {formatCurrency(price)} × {qty}
                         </p>
@@ -421,9 +370,33 @@ export const OrderDetails = () => {
                         )}
                       </div>
                       <div className="flex flex-col items-end gap-2">
-                        <p className="font-semibold text-gray-900 sm:text-right">
-                          {formatCurrency(lineTotal)}
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-gray-900 sm:text-right">
+                            {formatCurrency(lineTotal)}
+                          </p>
+                          {isAuthenticated && !isStoreView && menuItemId && (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleFavorite(menuItemId)}
+                              className={`shrink-0 p-1.5 rounded-full transition-colors flex items-center justify-center ${
+                                favoriteIds.has(menuItemId)
+                                  ? 'text-red-500 hover:text-red-600'
+                                  : 'text-gray-400 hover:text-red-500'
+                              }`}
+                              aria-label={
+                                favoriteIds.has(menuItemId)
+                                  ? 'Remove from favorites'
+                                  : 'Add to favorites'
+                              }
+                            >
+                              <Heart
+                                className={`h-4 w-4 shrink-0 ${
+                                  favoriteIds.has(menuItemId) ? 'fill-current' : ''
+                                }`}
+                              />
+                            </button>
+                          )}
+                        </div>
                         {canRate && !showForm && menuItemId && (
                           <button
                             onClick={() =>
@@ -463,22 +436,24 @@ export const OrderDetails = () => {
           </div>
         )}
 
-        <div className="mt-6 pt-4 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex items-baseline justify-between sm:justify-start gap-4">
-            <span className="text-lg font-semibold text-gray-900">Total</span>
-            <span className="text-2xl font-bold text-primary-600">
-              {formatCurrency(currentOrder.total ?? 0)}
-            </span>
+        <div className="mt-6 pt-4 border-t border-gray-100">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-baseline justify-between sm:justify-start gap-3">
+              <span className="text-base font-semibold text-gray-900">Total</span>
+              <span className="text-xl font-bold text-primary-600">
+                {formatCurrency(currentOrder.total ?? 0)}
+              </span>
+            </div>
+            {!isStoreView && unpaid && (
+              <Button
+                onClick={() => navigate(`/orders/${currentOrder.id}/payment`)}
+                className="w-full sm:w-auto inline-flex items-center gap-2 shrink-0 whitespace-nowrap"
+              >
+                <CreditCard className="h-4 w-4 shrink-0" />
+                <span>Pay now</span>
+              </Button>
+            )}
           </div>
-          {!isStoreView && unpaid && (
-            <Button
-              onClick={() => navigate(`/orders/${currentOrder.id}/payment`)}
-              className="w-full sm:w-auto gap-2"
-            >
-              <CreditCard className="h-4 w-4" />
-              Pay Now
-            </Button>
-          )}
         </div>
       </Card>
     </div>

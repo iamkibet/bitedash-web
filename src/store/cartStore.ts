@@ -2,6 +2,37 @@ import { create } from 'zustand';
 import type { CartItem, MenuItem } from '../types/order.types';
 import { MAX_CART_ITEM_QUANTITY } from '../utils/constants';
 
+const CART_STORAGE_KEY = 'bitedash_cart';
+
+function loadCartFromStorage(): { items: CartItem[]; restaurantId: number | null } {
+  try {
+    const raw = localStorage.getItem(CART_STORAGE_KEY);
+    if (!raw) return { items: [], restaurantId: null };
+    const data = JSON.parse(raw) as { items?: CartItem[]; restaurantId?: number | null };
+    if (!data || !Array.isArray(data.items)) return { items: [], restaurantId: null };
+    return {
+      items: data.items,
+      restaurantId: data.restaurantId ?? null,
+    };
+  } catch {
+    return { items: [], restaurantId: null };
+  }
+}
+
+function saveCartToStorage(items: CartItem[], restaurantId: number | null): void {
+  try {
+    if (items.length === 0) {
+      localStorage.removeItem(CART_STORAGE_KEY);
+      return;
+    }
+    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify({ items, restaurantId }));
+  } catch (e) {
+    console.warn('Failed to persist cart', e);
+  }
+}
+
+const initialState = loadCartFromStorage();
+
 interface CartState {
   items: CartItem[];
   restaurantId: number | null;
@@ -15,83 +46,82 @@ interface CartState {
 }
 
 export const useCartStore = create<CartState>()((set, get) => ({
-      items: [],
-      restaurantId: null,
+  items: initialState.items,
+  restaurantId: initialState.restaurantId,
 
-      addItem: (menuItem: MenuItem, quantity: number) => {
-        const { items, restaurantId } = get();
+  addItem: (menuItem: MenuItem, quantity: number) => {
+    const { items, restaurantId } = get();
 
-        // If adding item from different restaurant, clear cart
-        if (restaurantId && restaurantId !== menuItem.restaurant_id) {
-          set({
-            items: [{ menu_item: menuItem, quantity }],
-            restaurantId: menuItem.restaurant_id,
-          });
-          return;
-        }
+    if (restaurantId && restaurantId !== menuItem.restaurant_id) {
+      const next = {
+        items: [{ menu_item: menuItem, quantity }],
+        restaurantId: menuItem.restaurant_id,
+      };
+      set(next);
+      saveCartToStorage(next.items, next.restaurantId);
+      return;
+    }
 
-        // Check if item already exists
-        const existingItemIndex = items.findIndex(
-          (item) => item.menu_item.id === menuItem.id
-        );
+    const existingItemIndex = items.findIndex(
+      (item) => item.menu_item.id === menuItem.id
+    );
 
-        if (existingItemIndex >= 0) {
-          // Update quantity
-          const newItems = [...items];
-          const newQuantity = Math.min(
-            newItems[existingItemIndex].quantity + quantity,
-            MAX_CART_ITEM_QUANTITY
-          );
-          newItems[existingItemIndex].quantity = newQuantity;
-          set({ items: newItems });
-        } else {
-          // Add new item
-          set({
-            items: [...items, { menu_item: menuItem, quantity }],
-            restaurantId: menuItem.restaurant_id,
-          });
-        }
-      },
+    if (existingItemIndex >= 0) {
+      const newItems = [...items];
+      const newQuantity = Math.min(
+        newItems[existingItemIndex].quantity + quantity,
+        MAX_CART_ITEM_QUANTITY
+      );
+      newItems[existingItemIndex].quantity = newQuantity;
+      set({ items: newItems });
+      saveCartToStorage(newItems, get().restaurantId);
+    } else {
+      const newItems = [...items, { menu_item: menuItem, quantity }];
+      set({ items: newItems, restaurantId: menuItem.restaurant_id });
+      saveCartToStorage(newItems, menuItem.restaurant_id);
+    }
+  },
 
-      removeItem: (menuItemId: number) => {
-        const items = get().items.filter((item) => item.menu_item.id !== menuItemId);
-        set({ items });
-        if (items.length === 0) {
-          set({ restaurantId: null });
-        }
-      },
+  removeItem: (menuItemId: number) => {
+    const items = get().items.filter((item) => item.menu_item.id !== menuItemId);
+    const restaurantId = items.length === 0 ? null : get().restaurantId;
+    set({ items, restaurantId });
+    saveCartToStorage(items, restaurantId);
+  },
 
-      updateQuantity: (menuItemId: number, quantity: number) => {
-        if (quantity <= 0) {
-          get().removeItem(menuItemId);
-          return;
-        }
+  updateQuantity: (menuItemId: number, quantity: number) => {
+    if (quantity <= 0) {
+      get().removeItem(menuItemId);
+      return;
+    }
 
-        const items = get().items.map((item) =>
-          item.menu_item.id === menuItemId
-            ? { ...item, quantity: Math.min(quantity, MAX_CART_ITEM_QUANTITY) }
-            : item
-        );
-        set({ items });
-      },
+    const items = get().items.map((item) =>
+      item.menu_item.id === menuItemId
+        ? { ...item, quantity: Math.min(quantity, MAX_CART_ITEM_QUANTITY) }
+        : item
+    );
+    set({ items });
+    saveCartToStorage(items, get().restaurantId);
+  },
 
-      clearCart: () => {
-        set({ items: [], restaurantId: null });
-      },
+  clearCart: () => {
+    set({ items: [], restaurantId: null });
+    localStorage.removeItem(CART_STORAGE_KEY);
+  },
 
-      getTotal: () => {
-        return get().items.reduce(
-          (total, item) => total + item.menu_item.price * item.quantity,
-          0
-        );
-      },
+  getTotal: () => {
+    return get().items.reduce(
+      (total, item) => total + item.menu_item.price * item.quantity,
+      0
+    );
+  },
 
-      getItemCount: () => {
-        return get().items.reduce((count, item) => count + item.quantity, 0);
-      },
+  getItemCount: () => {
+    return get().items.reduce((count, item) => count + item.quantity, 0);
+  },
 
-      setRestaurant: (restaurantId: number) => {
-        set({ restaurantId });
-      },
-    })
-);
+  setRestaurant: (restaurantId: number) => {
+    set({ restaurantId });
+    saveCartToStorage(get().items, restaurantId);
+  },
+}));
