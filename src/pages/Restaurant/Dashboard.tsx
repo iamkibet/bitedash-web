@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { restaurantsApi } from '../../api/restaurants';
 import { useOrderStore } from '../../store/orderStore';
 import { useAuthStore } from '../../store/authStore';
@@ -70,11 +70,44 @@ export const RestaurantDashboard = () => {
   const [updatingOrderId, setUpdatingOrderId] = useState<number | null>(null);
   const [statusMenuOpen, setStatusMenuOpen] = useState<number | null>(null);
 
-  useEffect(() => {
-    fetchStoreAndOrders();
+  const fetchRatingsSummary = useCallback(async (restaurantId: number) => {
+    try {
+      const menuItems = await menuItemsApi.getByRestaurant(restaurantId);
+      let totalRatings = 0;
+      let totalRatingSum = 0;
+      let itemsWithRatings = 0;
+
+      for (const item of menuItems) {
+        try {
+          const response = await ratingsApi.getByMenuItem(item.id);
+          const itemRatings = response.data || [];
+          if (itemRatings.length > 0) {
+            itemsWithRatings++;
+            const itemAverage =
+              response.stats?.average_rating ||
+              itemRatings.reduce((sum, r) => sum + r.rating, 0) / itemRatings.length;
+            const itemCount = response.stats?.total_ratings || itemRatings.length;
+            totalRatings += itemCount;
+            totalRatingSum += itemAverage * itemCount;
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      if (totalRatings > 0) {
+        setRatingsSummary({
+          average: totalRatingSum / totalRatings,
+          total: totalRatings,
+          itemsWithRatings,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch ratings summary:', error);
+    }
   }, []);
 
-  const fetchStoreAndOrders = async () => {
+  const fetchStoreAndOrders = useCallback(async () => {
     try {
       setIsLoading(true);
       const { store, statistics: stats } = await restaurantsApi.getMyStoreWithStats();
@@ -135,44 +168,11 @@ export const RestaurantDashboard = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [getRestaurantOrdersAll, user, fetchRatingsSummary]);
 
-  const fetchRatingsSummary = async (restaurantId: number) => {
-    try {
-      const menuItems = await menuItemsApi.getByRestaurant(restaurantId);
-      let totalRatings = 0;
-      let totalRatingSum = 0;
-      let itemsWithRatings = 0;
-
-      for (const item of menuItems) {
-        try {
-          const response = await ratingsApi.getByMenuItem(item.id);
-          const itemRatings = response.data || [];
-          if (itemRatings.length > 0) {
-            itemsWithRatings++;
-            const itemAverage =
-              response.stats?.average_rating ||
-              itemRatings.reduce((sum, r) => sum + r.rating, 0) / itemRatings.length;
-            const itemCount = response.stats?.total_ratings || itemRatings.length;
-            totalRatings += itemCount;
-            totalRatingSum += itemAverage * itemCount;
-          }
-        } catch {
-          // ignore
-        }
-      }
-
-      if (totalRatings > 0) {
-        setRatingsSummary({
-          average: totalRatingSum / totalRatings,
-          total: totalRatings,
-          itemsWithRatings,
-        });
-      }
-    } catch (error) {
-      console.error('Failed to fetch ratings summary:', error);
-    }
-  };
+  useEffect(() => {
+    fetchStoreAndOrders();
+  }, [fetchStoreAndOrders]);
 
   const handleToggleStatus = async () => {
     if (!restaurant) return;

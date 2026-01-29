@@ -6,9 +6,8 @@ import { Card } from '../../components/common/Card';
 import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
 import { Spinner } from '../../components/common/Spinner';
-import { formatCurrency, formatDate } from '../../utils/formatters';
+import { formatCurrency, formatDate, formatDateShort, formatTime } from '../../utils/formatters';
 import { ORDER_STATUSES } from '../../utils/constants';
-import { getNextStatusTransitions } from '../../utils/orderLifecycle';
 import {
   Truck,
   Package,
@@ -16,7 +15,8 @@ import {
   ArrowRight,
   CheckCircle,
   Zap,
-  Clock,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import type { OrderStatus } from '../../types/order.types';
 
@@ -34,6 +34,7 @@ export const RiderDashboard = () => {
   const [loadingDeliveries, setLoadingDeliveries] = useState(true);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [acceptingId, setAcceptingId] = useState<number | null>(null);
+  const [deliveriesExpanded, setDeliveriesExpanded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -79,9 +80,11 @@ export const RiderDashboard = () => {
   const deliveriesCount = riderDeliveries.length;
   const availableCount = availableOrders.length;
   const previewAvailable = availableOrders.slice(0, 3);
-  const allDeliveries = riderDeliveries;
-  const displayedDeliveries = riderDeliveries.slice(0, 5);
-  const showAllDeliveriesLink = riderDeliveries.length > 5;
+  const sortedDeliveries = [...riderDeliveries].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
+  const displayedDeliveries = deliveriesExpanded ? sortedDeliveries : sortedDeliveries.slice(0, 5);
+  const showViewMoreDeliveries = !deliveriesExpanded && riderDeliveries.length > 5;
 
   if (storeLoading && deliveriesCount === 0 && availableCount === 0) {
     return (
@@ -250,19 +253,19 @@ export const RiderDashboard = () => {
         )}
       </section>
 
-      {/* 2. All deliveries — below available */}
+      {/* 2. All deliveries — table, same as /rider/deliveries */}
       <section>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
           <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <Truck className="h-5 w-5 text-primary-600" aria-hidden />
             All deliveries
           </h2>
-          {showAllDeliveriesLink && (
+          {riderDeliveries.length > 5 && (
             <Link
               to="/rider/deliveries"
               className="inline-flex items-center gap-1.5 text-sm font-medium text-primary-600 hover:text-primary-700"
             >
-              View all
+              View all on deliveries page
               <ArrowRight className="h-4 w-4 shrink-0" aria-hidden />
             </Link>
           )}
@@ -272,7 +275,7 @@ export const RiderDashboard = () => {
           <div className="flex justify-center py-12">
             <Spinner />
           </div>
-        ) : allDeliveries.length === 0 ? (
+        ) : riderDeliveries.length === 0 ? (
           <Card className="border border-gray-200/80 rounded-xl overflow-hidden">
             <div className="text-center py-12 px-4">
               <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
@@ -291,56 +294,144 @@ export const RiderDashboard = () => {
             </div>
           </Card>
         ) : (
-          <ul className="space-y-4 list-none p-0 m-0">
-            {displayedDeliveries.map((order) => {
-              const statusConfig = ORDER_STATUSES[order.status];
-              const nextTransitions = getNextStatusTransitions(order);
-              const itemCount = (order.items ?? []).length;
-              return (
-                <li key={order.id}>
-                  <Card className="p-4 sm:p-5 border border-gray-200/80 rounded-xl shadow-sm hover:shadow-md transition-shadow">
-                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2 mb-2">
-                          <span className="font-semibold text-gray-900">Order #{order.id}</span>
-                          <Badge variant={statusConfig?.color as 'success' | 'warning' | 'error' | 'info' | 'default'}>
-                            {statusConfig?.icon} {statusConfig?.label}
-                          </Badge>
-                        </div>
-                        <div className="flex items-start gap-2 text-sm text-gray-600 mb-1">
-                          <Package className="h-4 w-4 text-gray-400 mt-0.5 shrink-0" aria-hidden />
-                          <span>{order.restaurant?.name} • {itemCount} item(s)</span>
-                        </div>
-                        <div className="flex items-start gap-2 text-sm text-gray-600 mb-1">
-                          <MapPin className="h-4 w-4 text-gray-400 mt-0.5 shrink-0" aria-hidden />
-                          <span>{order.delivery_address}</span>
-                        </div>
-                        <p className="text-sm text-gray-500 flex items-center gap-1.5 mt-1">
-                          <Clock className="h-3.5 w-3.5" aria-hidden />
-                          {formatCurrency(order.total)} • {formatDate(order.created_at)}
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
-                        {nextTransitions.map((next) => (
-                          <Button
-                            key={next}
-                            size="sm"
-                            isLoading={updatingId === order.id}
-                            onClick={() => handleStatusUpdate(order.id, next)}
-                            className="inline-flex items-center gap-1.5"
-                          >
-                            {next === 'on_the_way' && <Truck className="h-4 w-4" aria-hidden />}
-                            {next === 'delivered' && <CheckCircle className="h-4 w-4" aria-hidden />}
-                            {next === 'on_the_way' ? 'On the way' : 'Mark delivered'}
-                          </Button>
-                        ))}
-                      </div>
-                    </div>
-                  </Card>
-                </li>
-              );
-            })}
-          </ul>
+          <>
+            <Card padding="none" className="overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[800px] text-left">
+                  <thead>
+                    <tr className="border-b border-gray-200 bg-gray-50/80">
+                      <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                        Order
+                      </th>
+                      <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                        Restaurant
+                      </th>
+                      <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                        Delivery address
+                      </th>
+                      <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                        Customer / Phone
+                      </th>
+                      <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                        Items
+                      </th>
+                      <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap text-right">
+                        Total
+                      </th>
+                      <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                        Date & time
+                      </th>
+                      <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                        Status
+                      </th>
+                      <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap text-right">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {displayedDeliveries.map((order) => {
+                      const statusConfig = ORDER_STATUSES[order.status];
+                      const itemCount = (order.items ?? []).length;
+                      const canMarkDelivered = order.status === 'on_the_way';
+
+                      return (
+                        <tr key={order.id} className="hover:bg-gray-50/50 transition-colors">
+                          <td className="py-3 px-4">
+                            <span className="font-semibold text-gray-900">#{order.id}</span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="text-sm text-gray-700">
+                              {order.restaurant?.name ?? '—'}
+                            </div>
+                            {order.restaurant?.location && (
+                              <div className="text-xs text-gray-500 truncate max-w-[140px]">
+                                {order.restaurant.location}
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 max-w-[200px]">
+                            <span className="text-sm text-gray-700 line-clamp-2" title={order.delivery_address}>
+                              {order.delivery_address}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="text-sm text-gray-700">{order.user?.name ?? '—'}</div>
+                            <a
+                              href={order.user?.phone ? `tel:${order.user.phone}` : undefined}
+                              className="text-xs text-primary-600 hover:text-primary-700 hover:underline"
+                            >
+                              {order.user?.phone ?? '—'}
+                            </a>
+                          </td>
+                          <td className="py-3 px-4 text-sm text-gray-600 whitespace-nowrap">
+                            {itemCount} item{itemCount === 1 ? '' : 's'}
+                          </td>
+                          <td className="py-3 px-4 text-right whitespace-nowrap font-medium text-gray-900">
+                            {formatCurrency(order.total ?? 0)}
+                          </td>
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-700">{formatDateShort(order.created_at)}</div>
+                            <div className="text-xs text-gray-500">{formatTime(order.created_at)}</div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <Badge
+                              variant={statusConfig?.color as 'success' | 'warning' | 'error' | 'info' | 'default'}
+                              className="text-xs whitespace-nowrap"
+                            >
+                              {statusConfig?.icon} {statusConfig?.label}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            {canMarkDelivered && (
+                              <Button
+                                size="sm"
+                                onClick={() => handleStatusUpdate(order.id, 'delivered')}
+                                className="inline-flex items-center gap-1.5"
+                                isLoading={updatingId === order.id}
+                              >
+                                <CheckCircle className="h-4 w-4" aria-hidden />
+                                Mark delivered
+                              </Button>
+                            )}
+                            {!canMarkDelivered && (
+                              <span className="text-xs text-gray-500">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+            {showViewMoreDeliveries && (
+              <div className="mt-4 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => setDeliveriesExpanded(true)}
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-primary-600 hover:text-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 rounded-md py-1.5"
+                  aria-label={`View ${riderDeliveries.length - 5} more deliveries`}
+                >
+                  View more
+                  <ChevronDown className="h-5 w-5 shrink-0" aria-hidden />
+                </button>
+              </div>
+            )}
+            {deliveriesExpanded && riderDeliveries.length > 5 && (
+              <div className="mt-4 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => setDeliveriesExpanded(false)}
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-primary-600 hover:text-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 rounded-md py-1.5"
+                  aria-label="Show less"
+                >
+                  Show less
+                  <ChevronUp className="h-5 w-5 shrink-0" aria-hidden />
+                </button>
+              </div>
+            )}
+          </>
         )}
       </section>
     </div>

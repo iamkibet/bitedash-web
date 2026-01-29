@@ -18,7 +18,6 @@ import {
   MoreVertical,
   Package,
   Store,
-  ChevronDown,
 } from 'lucide-react';
 import { restaurantsApi } from '../../api/restaurants';
 import { ridersApi, type Rider } from '../../api/riders';
@@ -58,7 +57,7 @@ export const RestaurantOrders = () => {
     if (!restaurant) return;
     const interval = setInterval(() => getRestaurantOrdersAll(restaurant.id), 15000);
     return () => clearInterval(interval);
-  }, [restaurant?.id, getRestaurantOrdersAll]);
+  }, [restaurant, getRestaurantOrdersAll]);
 
   const fetchRiders = async () => {
     try {
