@@ -905,14 +905,14 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange, selected
                     >
                       {/* Dish Image on Plate */}
                       <div className="relative mb-4">
-                        {/* Plate Design */}
-                        <div className="relative w-32 h-32 sm:w-36 sm:h-36">
-                          {/* Plate Base */}
-                          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 shadow-lg"></div>
-                          {/* Plate Rim */}
-                          <div className="absolute inset-2 rounded-full bg-white border-4 border-gray-300 shadow-inner"></div>
-                          {/* Food Image */}
-                          <div className="absolute inset-4 rounded-full overflow-hidden">
+                        <div
+                          className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-full border border-gray-200/90 bg-gradient-to-b from-white via-gray-50/90 to-gray-100/80"
+                          style={{
+                            boxShadow:
+                              '0 6px 18px rgba(0,0,0,0.12), 0 2px 4px rgba(0,0,0,0.06), inset 0 2px 3px rgba(255,255,255,0.85), inset 0 -1px 2px rgba(0,0,0,0.04)',
+                          }}
+                        >
+                          <div className="absolute inset-1 rounded-full overflow-hidden">
                             <MenuItemImage
                               src={item.image_url}
                               alt={item.name}
@@ -1125,7 +1125,7 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange, selected
 
             {/* Center Dish Display */}
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-40 h-40 sm:w-48 sm:h-48 md:w-56 md:h-56 lg:w-64 lg:h-64 bg-primary-50 rounded-full border border-primary-200 overflow-hidden relative">
+              <div className="w-40 h-40 sm:w-48 sm:h-48 md:w-56 md:h-56 lg:w-64 lg:h-64 rounded-full border border-primary-200 overflow-hidden relative">
                 {/* Dish Display */}
                 {selectedRestaurantItems.length === 0 ? (
                   <div className="w-full h-full flex flex-col items-center justify-center p-4">
@@ -1184,15 +1184,24 @@ export const MealWheel = ({ restaurants, menuItems, onRestaurantChange, selected
                               }
                             }}
                           >
-                            {/* Dish Image */}
-                            <div className="relative w-24 h-24 sm:w-28 sm:h-28 mb-4">
-                              <div className="w-full h-full rounded-full overflow-hidden shadow-sm border border-gray-100">
-                                <MenuItemImage
-                                  src={item.image_url}
-                                  alt={item.name}
-                                  className="rounded-full"
-                                  aspectRatio={1}
-                                />
+                            {/* Dish Image on Plate */}
+                            <div className="relative w-20 h-20 sm:w-24 sm:h-24 mb-4">
+                              {/* Plate: thin rim, ceramic look, image fills plate */}
+                              <div
+                                className="absolute inset-0 rounded-full border border-gray-200/90 bg-gradient-to-b from-white via-gray-50/90 to-gray-100/80"
+                                style={{
+                                  boxShadow:
+                                    '0 6px 18px rgba(0,0,0,0.12), 0 2px 4px rgba(0,0,0,0.06), inset 0 2px 3px rgba(255,255,255,0.85), inset 0 -1px 2px rgba(0,0,0,0.04)',
+                                }}
+                              >
+                                <div className="absolute inset-1 rounded-full overflow-hidden">
+                                  <MenuItemImage
+                                    src={item.image_url}
+                                    alt={item.name}
+                                    className="rounded-full"
+                                    aspectRatio={1}
+                                  />
+                                </div>
                               </div>
                             </div>
 
