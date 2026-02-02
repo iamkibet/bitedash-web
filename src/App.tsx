@@ -40,6 +40,9 @@ import { RiderDeliveries } from './pages/Rider/Deliveries';
 
 // Admin Pages
 import { AdminDashboard } from './pages/Admin/Dashboard';
+import { AdminUsers } from './pages/Admin/Users';
+import { AdminStores } from './pages/Admin/Stores';
+import { AdminOrders } from './pages/Admin/Orders';
 
 function App() {
   const { checkAuth } = useAuthStore();
@@ -96,9 +99,9 @@ function App() {
           {/* Admin Routes */}
           <Route element={<ProtectedRoute requiredRole="admin" />}>
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
-            <Route path="/admin/users" element={<div>Users Management</div>} />
-            <Route path="/admin/stores" element={<div>Stores Management</div>} />
-            <Route path="/admin/orders" element={<div>Orders Management</div>} />
+            <Route path="/admin/users" element={<AdminUsers />} />
+            <Route path="/admin/stores" element={<AdminStores />} />
+            <Route path="/admin/orders" element={<AdminOrders />} />
           </Route>
         </Route>
 
