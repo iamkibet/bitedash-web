@@ -149,10 +149,18 @@ export const adminApi = {
     return response.data.data;
   },
 
-  /** PATCH /admin/stores/:id — update store (e.g. is_open). */
+  /** PATCH /admin/stores/:id — update store (e.g. is_open). Falls back to PUT /stores/:id on 404. */
   updateStore: async (id: number, data: { is_open?: boolean }): Promise<Restaurant> => {
-    const response = await apiClient.put<{ data: Restaurant }>(`/admin/stores/${id}`, data);
-    return response.data.data;
+    try {
+      const response = await apiClient.put<{ data: Restaurant }>(`/admin/stores/${id}`, data);
+      return response.data.data;
+    } catch (e: unknown) {
+      const err = e as { response?: { status?: number } };
+      if ((err.response?.status === 404 || err.response?.status === 403) && data.is_open !== undefined) {
+        return await restaurantsApi.update(id, { is_open: data.is_open });
+      }
+      throw e;
+    }
   },
 };
 
